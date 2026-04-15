@@ -60,6 +60,21 @@ def _run_docker(args: list[str], cwd: Path | None = None) -> subprocess.Complete
     return subprocess.run(cmd, cwd=root, capture_output=True, text=True)
 
 
+def _check_actian_sdk() -> tuple[bool, str]:
+    """Check if the actian-vectorai SDK is installed."""
+    try:
+        import actian_vectorai  # noqa: F401
+
+        return True, "installed"
+    except ImportError:
+        return False, (
+            "not installed — run:\n"
+            '    pip install "actian-vectorai @ '
+            "https://github.com/hackmamba-io/actian-vectorAI-db-beta/raw/main/"
+            'actian_vectorai-0.1.0b2-py3-none-any.whl"'
+        )
+
+
 def _check_db_connection() -> tuple[bool, str]:
     """Check if the Actian VectorAI DB is reachable."""
     try:
@@ -68,6 +83,8 @@ def _check_db_connection() -> tuple[bool, str]:
         with VectorAIClient(DB_URL, timeout=5.0) as client:
             info = client.health_check()
             return True, f"{info.get('title', 'VectorAI DB')} v{info.get('version', '?')}"
+    except ImportError:
+        return False, "actian-vectorai SDK not installed"
     except Exception as e:
         return False, str(e)
 
@@ -325,11 +342,15 @@ def doctor():
     except Exception:
         checks.append(("Container", False, "cannot check"))
 
-    # 3. DB connection?
+    # 3. Actian VectorAI SDK?
+    sdk_ok, sdk_info = _check_actian_sdk()
+    checks.append(("actian-vectorai SDK", sdk_ok, sdk_info))
+
+    # 4. DB connection?
     db_ok, db_info = _check_db_connection()
     checks.append(("Database connection", db_ok, db_info if db_ok else f"failed — {db_info}"))
 
-    # 4. Collection exists?
+    # 5. Collection exists?
     if db_ok:
         try:
             from .storage import StorageService
@@ -348,14 +369,14 @@ def doctor():
     else:
         checks.append(("Collection", False, "skipped (no DB connection)"))
 
-    # 5. Embedding models importable?
+    # 6. Embedding models importable?
     try:
         from sentence_transformers import SentenceTransformer  # noqa: F401
         checks.append(("sentence-transformers", True, "installed"))
     except ImportError:
         checks.append(("sentence-transformers", False, "not installed — pip install sentence-transformers"))
 
-    # 6. MCP SDK importable?
+    # 7. MCP SDK importable?
     try:
         import mcp  # noqa: F401
         checks.append(("MCP SDK", True, "installed"))

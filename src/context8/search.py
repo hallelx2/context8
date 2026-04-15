@@ -9,13 +9,6 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from actian_vectorai import (
-    Field,
-    FilterBuilder,
-    reciprocal_rank_fusion,
-)
-from actian_vectorai.exceptions import VectorAIError
-
 from .config import (
     COLLECTION_NAME,
     DEFAULT_DENSE_WEIGHT,
@@ -25,7 +18,7 @@ from .config import (
     SCORE_THRESHOLD,
 )
 from .embeddings import EmbeddingService
-from .storage import StorageService
+from .storage import StorageService, _require_actian
 from .models import ResolutionRecord, SearchResult
 
 logger = logging.getLogger("context8.search")
@@ -59,16 +52,12 @@ class SearchEngine:
         limit: int = 5,
         score_threshold: float = SCORE_THRESHOLD,
     ) -> list[SearchResult]:
-        """Execute hybrid search across all vector spaces.
+        """Execute hybrid search across all vector spaces."""
+        av = _require_actian()
+        VectorAIError = av.exceptions.VectorAIError
 
-        Runs dense search on "problem" and "code_context" named vectors,
-        optionally sparse search on "keywords", fuses with RRF, and
-        applies metadata filters.
-        """
-        # Generate query vectors
         query_vectors = self.embeddings.embed_query(query, code_context)
 
-        # Build metadata filter
         search_filter = self._build_filter(
             language=language,
             framework=framework,
@@ -76,9 +65,7 @@ class SearchEngine:
             resolved_only=resolved_only,
         )
 
-        # Adjust weights based on query type
         weights = QueryAnalyzer.analyze(query, code_context)
-
         prefetch_limit = min(limit * 10, 50)
         result_lists = []
         fusion_weights = []
@@ -98,7 +85,6 @@ class SearchEngine:
                 fusion_weights.append(weights["dense"])
         except VectorAIError as e:
             logger.warning(f"Problem vector search failed: {e}")
-            # Fallback: search without named vector (single-vector collection)
             try:
                 problem_results = self.storage.client.points.search(
                     COLLECTION_NAME,
@@ -150,16 +136,14 @@ class SearchEngine:
             except VectorAIError as e:
                 logger.debug(f"Sparse search not available: {e}")
 
-        # ── Nothing found ─────────────────────────────────────────────────
         if not result_lists:
             return []
 
         # ── Fuse results ──────────────────────────────────────────────────
         if len(result_lists) == 1:
-            # Only one search strategy returned results — no fusion needed
             fused = result_lists[0][:limit]
         else:
-            fused = reciprocal_rank_fusion(
+            fused = av.reciprocal_rank_fusion(
                 result_lists,
                 limit=limit,
                 ranking_constant_k=60,
@@ -191,6 +175,9 @@ class SearchEngine:
         limit: int = 5,
     ) -> list[SearchResult]:
         """Simple dense search on problem vector only."""
+        av = _require_actian()
+        VectorAIError = av.exceptions.VectorAIError
+
         query_vec = self.embeddings.embed_text(query)
         search_filter = self._build_filter(language=language)
 
@@ -204,7 +191,6 @@ class SearchEngine:
                 with_payload=True,
             )
         except VectorAIError:
-            # Fallback for single-vector collection
             results = self.storage.client.points.search(
                 COLLECTION_NAME,
                 vector=query_vec,
@@ -241,21 +227,22 @@ class SearchEngine:
         resolved_only: bool = False,
     ):
         """Build Actian filter from search parameters."""
-        conditions = []
+        av = _require_actian()
 
+        conditions = []
         if language:
-            conditions.append(Field("language").eq(language.lower()))
+            conditions.append(av.Field("language").eq(language.lower()))
         if framework:
-            conditions.append(Field("framework").eq(framework.lower()))
+            conditions.append(av.Field("framework").eq(framework.lower()))
         if error_type:
-            conditions.append(Field("error_type").eq(error_type))
+            conditions.append(av.Field("error_type").eq(error_type))
         if resolved_only:
-            conditions.append(Field("resolved").eq(True))
+            conditions.append(av.Field("resolved").eq(True))
 
         if not conditions:
             return None
 
-        builder = FilterBuilder()
+        builder = av.FilterBuilder()
         for condition in conditions:
             builder = builder.must(condition)
         return builder.build()
@@ -268,7 +255,6 @@ class QueryAnalyzer:
         "Error", "Exception", "Traceback", "FATAL", "panic",
         "error:", "ERR_", "E0", "TS2",
     ]
-
     CODE_PATTERNS = [
         "def ", "function ", "class ", "import ", "from ",
         "const ", "let ", "var ", "fn ", "pub ", "async ",

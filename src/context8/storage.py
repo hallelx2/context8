@@ -3,18 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
-
-from actian_vectorai import (
-    VectorAIClient,
-    VectorParams,
-    Distance,
-    SparseVectorParams,
-    PointStruct,
-    SparseVector,
-    HnswConfigDiff,
-)
-from actian_vectorai.exceptions import VectorAIError
+from typing import TYPE_CHECKING, Optional
 
 from .config import (
     DB_URL,
@@ -24,7 +13,27 @@ from .config import (
 )
 from .models import ResolutionRecord
 
+if TYPE_CHECKING:
+    from actian_vectorai import VectorAIClient
+
 logger = logging.getLogger("context8.storage")
+
+ACTIAN_INSTALL_HINT = (
+    "actian-vectorai is not installed. Install it with:\n\n"
+    '  pip install "actian-vectorai @ '
+    "https://github.com/hackmamba-io/actian-vectorAI-db-beta/raw/main/"
+    'actian_vectorai-0.1.0b2-py3-none-any.whl"\n'
+)
+
+
+def _require_actian():
+    """Import and return actian_vectorai, or raise a clear error."""
+    try:
+        import actian_vectorai
+
+        return actian_vectorai
+    except ImportError:
+        raise ImportError(ACTIAN_INSTALL_HINT) from None
 
 
 class StorageService:
@@ -38,7 +47,8 @@ class StorageService:
     @property
     def client(self) -> VectorAIClient:
         if self._client is None:
-            self._client = VectorAIClient(self.url, timeout=10.0)
+            av = _require_actian()
+            self._client = av.VectorAIClient(self.url, timeout=10.0)
         return self._client
 
     def initialize(self) -> bool:
@@ -49,6 +59,9 @@ class StorageService:
         Attempts hybrid (dense + sparse). Falls back to dense-only
         if the server doesn't support sparse vectors.
         """
+        av = _require_actian()
+        VectorAIError = av.exceptions.VectorAIError
+
         if self.collection_exists():
             return False
 
@@ -57,20 +70,20 @@ class StorageService:
             self.client.collections.create(
                 COLLECTION_NAME,
                 vectors_config={
-                    "problem": VectorParams(
-                        size=TEXT_EMBED_DIM, distance=Distance.Cosine
+                    "problem": av.VectorParams(
+                        size=TEXT_EMBED_DIM, distance=av.Distance.Cosine
                     ),
-                    "solution": VectorParams(
-                        size=TEXT_EMBED_DIM, distance=Distance.Cosine
+                    "solution": av.VectorParams(
+                        size=TEXT_EMBED_DIM, distance=av.Distance.Cosine
                     ),
-                    "code_context": VectorParams(
-                        size=CODE_EMBED_DIM, distance=Distance.Cosine
+                    "code_context": av.VectorParams(
+                        size=CODE_EMBED_DIM, distance=av.Distance.Cosine
                     ),
                 },
                 sparse_vectors_config={
-                    "keywords": SparseVectorParams(),
+                    "keywords": av.SparseVectorParams(),
                 },
-                hnsw_config=HnswConfigDiff(m=16, ef_construct=200),
+                hnsw_config=av.HnswConfigDiff(m=16, ef_construct=200),
             )
             self._sparse_supported = True
             logger.info("Created hybrid collection (dense + sparse)")
@@ -84,17 +97,17 @@ class StorageService:
             self.client.collections.create(
                 COLLECTION_NAME,
                 vectors_config={
-                    "problem": VectorParams(
-                        size=TEXT_EMBED_DIM, distance=Distance.Cosine
+                    "problem": av.VectorParams(
+                        size=TEXT_EMBED_DIM, distance=av.Distance.Cosine
                     ),
-                    "solution": VectorParams(
-                        size=TEXT_EMBED_DIM, distance=Distance.Cosine
+                    "solution": av.VectorParams(
+                        size=TEXT_EMBED_DIM, distance=av.Distance.Cosine
                     ),
-                    "code_context": VectorParams(
-                        size=CODE_EMBED_DIM, distance=Distance.Cosine
+                    "code_context": av.VectorParams(
+                        size=CODE_EMBED_DIM, distance=av.Distance.Cosine
                     ),
                 },
-                hnsw_config=HnswConfigDiff(m=16, ef_construct=200),
+                hnsw_config=av.HnswConfigDiff(m=16, ef_construct=200),
             )
             self._sparse_supported = False
             logger.info("Created dense-only collection (sparse not supported)")
@@ -104,8 +117,8 @@ class StorageService:
             # Last resort: single vector space
             self.client.collections.create(
                 COLLECTION_NAME,
-                vectors_config=VectorParams(
-                    size=TEXT_EMBED_DIM, distance=Distance.Cosine
+                vectors_config=av.VectorParams(
+                    size=TEXT_EMBED_DIM, distance=av.Distance.Cosine
                 ),
             )
             self._sparse_supported = False
@@ -116,12 +129,9 @@ class StorageService:
     def sparse_supported(self) -> bool:
         """Check if the collection supports sparse vectors."""
         if self._sparse_supported is None:
-            # Detect from existing collection
             try:
-                info = self.client.collections.get_info(COLLECTION_NAME)
-                # If collection has config, check for sparse
+                self.client.collections.get_info(COLLECTION_NAME)
                 self._sparse_supported = False  # Safe default
-                # TODO: inspect info.config for sparse_vectors presence
             except Exception:
                 self._sparse_supported = False
         return self._sparse_supported
@@ -143,39 +153,27 @@ class StorageService:
             logger.warning(f"Failed to drop collection: {e}")
 
     def store_record(self, record: ResolutionRecord, vectors: dict) -> str:
-        """Store a resolution record with its embedding vectors.
+        """Store a resolution record with its embedding vectors."""
+        av = _require_actian()
+        VectorAIError = av.exceptions.VectorAIError
 
-        Args:
-            record: The resolution record
-            vectors: Dict from EmbeddingService.embed_record() containing:
-                - problem: list[float] (384d)
-                - solution: list[float] (384d)
-                - code_context: list[float] (768d)
-                - keywords_indices: list[int] (optional)
-                - keywords_values: list[float] (optional)
-
-        Returns:
-            The record ID.
-        """
-        # Build vector dict based on what the collection supports
         vector_data: dict = {
             "problem": vectors["problem"],
             "solution": vectors["solution"],
             "code_context": vectors["code_context"],
         }
 
-        # Add sparse vectors if supported
         if (
             self.sparse_supported
             and "keywords_indices" in vectors
             and vectors["keywords_indices"]
         ):
-            vector_data["keywords"] = SparseVector(
+            vector_data["keywords"] = av.SparseVector(
                 indices=vectors["keywords_indices"],
                 values=vectors["keywords_values"],
             )
 
-        point = PointStruct(
+        point = av.PointStruct(
             id=record.id,
             vector=vector_data,
             payload=record.to_payload(),
@@ -184,8 +182,7 @@ class StorageService:
         try:
             self.client.points.upsert(COLLECTION_NAME, [point])
         except VectorAIError:
-            # Fallback: try without sparse
-            point_fallback = PointStruct(
+            point_fallback = av.PointStruct(
                 id=record.id,
                 vector={
                     "problem": vectors["problem"],

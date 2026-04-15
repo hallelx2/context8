@@ -19,7 +19,6 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "actian-vectorai>=0.1.0b2",
     "sentence-transformers>=2.2.0",
     "mcp>=1.0.0",
     "click>=8.0.0",
@@ -39,12 +38,16 @@ all = [
     "context8[code,dev]",
 ]
 
+# NOTE: actian-vectorai is required at runtime but is not on PyPI.
+# Install it from the official hackathon repo:
+#   pip install "actian-vectorai @ https://github.com/hackmamba-io/actian-vectorAI-db-beta/raw/main/actian_vectorai-0.1.0b2-py3-none-any.whl"
+
 [project.scripts]
 context8 = "context8.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/context8/context8"
-Repository = "https://github.com/context8/context8"
+Homepage = "https://github.com/hallelx2/context8"
+Repository = "https://github.com/hallelx2/context8"
 
 [build-system]
 requires = ["hatchling"]

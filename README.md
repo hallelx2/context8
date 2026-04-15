@@ -12,31 +12,38 @@ Agent hits error → searches Context8 → finds a past solution → applies it
                      Agent solves new error → logs it to Context8 → future agents benefit
 ```
 
+## Prerequisites
+
+- **Docker Desktop** — Actian VectorAI DB runs as a Docker container on your machine
+- **Python 3.10+**
+
 ## Quick Start
 
 ```bash
-# Install with uv
-uv pip install -e .
+# 1. Install context8 + the Actian VectorAI DB client (one line)
+pip install context8 "actian-vectorai @ https://github.com/hackmamba-io/actian-vectorAI-db-beta/raw/main/actian_vectorai-0.1.0b2-py3-none-any.whl"
 
-# Or with pip
-pip install -e .
+# Or with uv
+uv pip install context8 "actian-vectorai @ https://github.com/hackmamba-io/actian-vectorAI-db-beta/raw/main/actian_vectorai-0.1.0b2-py3-none-any.whl"
 
-# Start the database
+# 2. Start the database (pulls and runs the Docker container)
 context8 start
 
-# Initialize and seed with 24 curated problem-solution pairs
+# 3. Initialize and seed with 24 curated problem-solution pairs
 context8 init --seed
 
-# Add to your coding agent
+# 4. Add to your coding agent
 context8 add claude       # Claude Code
 context8 add cursor       # Cursor
 context8 add windsurf     # Windsurf
 
-# Verify everything works
+# 5. Verify everything works
 context8 doctor
 ```
 
 Restart your agent. It now has three new tools: `context8_search`, `context8_log`, and `context8_stats`.
+
+> **Why two packages?** The `actian-vectorai` SDK is distributed by Actian as a beta wheel and is not yet on PyPI. Context8 is on PyPI. Once Actian publishes their SDK to PyPI, this will become a single `pip install context8`.
 
 ## What It Does
 
@@ -150,14 +157,17 @@ This project uses **all three** advanced features required by the Actian VectorA
 ## Development
 
 ```bash
-# Clone and install with dev dependencies
-git clone <repo-url>
-cd actian-hackathon
-uv venv && source .venv/bin/activate
-uv pip install -e ".[all]"
+# Clone and set up
+git clone https://github.com/hallelx2/context8.git
+cd context8
+uv venv && source .venv/bin/activate  # or: .venv\Scripts\activate on Windows
 
-# Start the DB
+# Install context8 + dev deps + actian client
+uv pip install -e ".[all]" "actian-vectorai @ https://github.com/hackmamba-io/actian-vectorAI-db-beta/raw/main/actian_vectorai-0.1.0b2-py3-none-any.whl"
+
+# Start the DB and verify
 context8 start
+context8 doctor
 
 # Run tests
 pytest tests/ -v
