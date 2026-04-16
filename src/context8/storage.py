@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from .config import (
-    DB_URL,
-    COLLECTION_NAME,
-    TEXT_EMBED_DIM,
     CODE_EMBED_DIM,
+    COLLECTION_NAME,
+    DB_URL,
+    TEXT_EMBED_DIM,
 )
 from .models import ResolutionRecord
 
@@ -41,8 +41,8 @@ class StorageService:
 
     def __init__(self, url: str = DB_URL):
         self.url = url
-        self._client: Optional[VectorAIClient] = None
-        self._sparse_supported: Optional[bool] = None
+        self._client: VectorAIClient | None = None
+        self._sparse_supported: bool | None = None
 
     @property
     def client(self) -> VectorAIClient:
@@ -70,12 +70,8 @@ class StorageService:
             self.client.collections.create(
                 COLLECTION_NAME,
                 vectors_config={
-                    "problem": av.VectorParams(
-                        size=TEXT_EMBED_DIM, distance=av.Distance.Cosine
-                    ),
-                    "solution": av.VectorParams(
-                        size=TEXT_EMBED_DIM, distance=av.Distance.Cosine
-                    ),
+                    "problem": av.VectorParams(size=TEXT_EMBED_DIM, distance=av.Distance.Cosine),
+                    "solution": av.VectorParams(size=TEXT_EMBED_DIM, distance=av.Distance.Cosine),
                     "code_context": av.VectorParams(
                         size=CODE_EMBED_DIM, distance=av.Distance.Cosine
                     ),
@@ -97,12 +93,8 @@ class StorageService:
             self.client.collections.create(
                 COLLECTION_NAME,
                 vectors_config={
-                    "problem": av.VectorParams(
-                        size=TEXT_EMBED_DIM, distance=av.Distance.Cosine
-                    ),
-                    "solution": av.VectorParams(
-                        size=TEXT_EMBED_DIM, distance=av.Distance.Cosine
-                    ),
+                    "problem": av.VectorParams(size=TEXT_EMBED_DIM, distance=av.Distance.Cosine),
+                    "solution": av.VectorParams(size=TEXT_EMBED_DIM, distance=av.Distance.Cosine),
                     "code_context": av.VectorParams(
                         size=CODE_EMBED_DIM, distance=av.Distance.Cosine
                     ),
@@ -117,9 +109,7 @@ class StorageService:
             # Last resort: single vector space
             self.client.collections.create(
                 COLLECTION_NAME,
-                vectors_config=av.VectorParams(
-                    size=TEXT_EMBED_DIM, distance=av.Distance.Cosine
-                ),
+                vectors_config=av.VectorParams(size=TEXT_EMBED_DIM, distance=av.Distance.Cosine),
             )
             self._sparse_supported = False
             logger.info("Created single-vector collection (named vectors not supported)")
@@ -163,11 +153,7 @@ class StorageService:
             "code_context": vectors["code_context"],
         }
 
-        if (
-            self.sparse_supported
-            and "keywords_indices" in vectors
-            and vectors["keywords_indices"]
-        ):
+        if self.sparse_supported and "keywords_indices" in vectors and vectors["keywords_indices"]:
             vector_data["keywords"] = av.SparseVector(
                 indices=vectors["keywords_indices"],
                 values=vectors["keywords_values"],
@@ -196,7 +182,7 @@ class StorageService:
 
         return record.id
 
-    def get_record(self, record_id: str) -> Optional[ResolutionRecord]:
+    def get_record(self, record_id: str) -> ResolutionRecord | None:
         """Retrieve a record by ID."""
         try:
             results = self.client.points.get(
@@ -217,7 +203,7 @@ class StorageService:
         except Exception:
             return 0
 
-    def get_collection_info(self) -> Optional[dict]:
+    def get_collection_info(self) -> dict | None:
         """Get collection metadata."""
         try:
             info = self.client.collections.get_info(COLLECTION_NAME)

@@ -14,13 +14,13 @@ from typing import Any
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
-from mcp.types import Tool, TextContent
+from mcp.types import TextContent, Tool
 
 from .config import COLLECTION_NAME, DB_URL
 from .embeddings import EmbeddingService
-from .storage import StorageService
-from .search import SearchEngine
 from .models import ResolutionRecord
+from .search import SearchEngine
+from .storage import StorageService
 
 logger = logging.getLogger("context8")
 
@@ -112,15 +112,30 @@ async def list_tools() -> list[Tool]:
                         "type": "string",
                         "description": "How you fixed it — what you changed and why",
                     },
-                    "error_type": {"type": "string", "description": "Error class (TypeError, ImportError, etc.)"},
+                    "error_type": {
+                        "type": "string",
+                        "description": "Error class (TypeError, ImportError, etc.)",
+                    },
                     "code_snippet": {"type": "string", "description": "The fix code"},
                     "code_diff": {"type": "string", "description": "Before/after diff"},
                     "stack_trace": {"type": "string", "description": "Relevant stack trace"},
                     "language": {"type": "string", "description": "Programming language"},
                     "framework": {"type": "string", "description": "Framework in use"},
-                    "libraries": {"type": "array", "items": {"type": "string"}, "description": "Library versions"},
-                    "tags": {"type": "array", "items": {"type": "string"}, "description": "Descriptive tags"},
-                    "confidence": {"type": "number", "description": "Confidence 0.0-1.0 (default 0.8)", "default": 0.8},
+                    "libraries": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Library versions",
+                    },
+                    "tags": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Descriptive tags",
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "description": "Confidence 0.0-1.0 (default 0.8)",
+                        "default": 0.8,
+                    },
                     "file_path": {"type": "string", "description": "File path of the fix"},
                 },
                 "required": ["problem", "solution"],
@@ -167,14 +182,16 @@ def _handle_search(args: dict) -> list[TextContent]:
     )
 
     if not results:
-        return [TextContent(
-            type="text",
-            text=(
-                "No matching solutions found in Context8. "
-                "This might be a new problem. After you resolve it, "
-                "consider logging the solution with context8_log."
-            ),
-        )]
+        return [
+            TextContent(
+                type="text",
+                text=(
+                    "No matching solutions found in Context8. "
+                    "This might be a new problem. After you resolve it, "
+                    "consider logging the solution with context8_log."
+                ),
+            )
+        ]
 
     lines = [f"Found {len(results)} solution(s) in Context8:\n"]
 
@@ -229,13 +246,15 @@ def _handle_log(args: dict) -> list[TextContent]:
     # Check for duplicates
     existing = engine.find_duplicate(record.problem_text)
     if existing:
-        return [TextContent(
-            type="text",
-            text=(
-                f"Similar solution already exists (score: {existing.score:.3f}). "
-                f"Record ID: {existing.record.id}. Skipping duplicate."
-            ),
-        )]
+        return [
+            TextContent(
+                type="text",
+                text=(
+                    f"Similar solution already exists (score: {existing.score:.3f}). "
+                    f"Record ID: {existing.record.id}. Skipping duplicate."
+                ),
+            )
+        ]
 
     # Embed and store
     vectors = embeddings.embed_record(
@@ -245,13 +264,15 @@ def _handle_log(args: dict) -> list[TextContent]:
     )
     record_id = storage.store_record(record, vectors)
 
-    return [TextContent(
-        type="text",
-        text=(
-            f"Solution logged to Context8. Record ID: {record_id}. "
-            f"Future agents encountering similar problems will find this."
-        ),
-    )]
+    return [
+        TextContent(
+            type="text",
+            text=(
+                f"Solution logged to Context8. Record ID: {record_id}. "
+                f"Future agents encountering similar problems will find this."
+            ),
+        )
+    ]
 
 
 def _handle_stats(args: dict) -> list[TextContent]:
@@ -259,16 +280,17 @@ def _handle_stats(args: dict) -> list[TextContent]:
     _, storage, _ = _get_services()
 
     total = storage.count()
-    info = storage.get_collection_info()
+    collection_info = storage.get_collection_info()
+    status = collection_info.get("status", "unknown") if collection_info else "unknown"
 
     lines = [
         "Context8 Knowledge Base:",
         f"  Records:       {total}",
         f"  Collection:    {COLLECTION_NAME}",
         f"  Endpoint:      {DB_URL}",
-        f"  Vector spaces: problem (384d), solution (384d), code_context (768d)",
+        "  Vector spaces: problem (384d), solution (384d), code_context (768d)",
         f"  Sparse:        {'enabled' if storage.sparse_supported else 'disabled (fallback mode)'}",
-        f"  Status:        HEALTHY",
+        f"  Status:        {status}",
     ]
 
     return [TextContent(type="text", text="\n".join(lines))]

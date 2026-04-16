@@ -7,19 +7,18 @@ sparse keyword search and metadata filtering, fused with RRF.
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from .config import (
     COLLECTION_NAME,
-    DEFAULT_DENSE_WEIGHT,
-    DEFAULT_CODE_WEIGHT,
-    DEFAULT_SPARSE_WEIGHT,
     DEDUP_THRESHOLD,
+    DEFAULT_CODE_WEIGHT,
+    DEFAULT_DENSE_WEIGHT,
+    DEFAULT_SPARSE_WEIGHT,
     SCORE_THRESHOLD,
 )
 from .embeddings import EmbeddingService
-from .storage import StorageService, _require_actian
 from .models import ResolutionRecord, SearchResult
+from .storage import StorageService, _require_actian
 
 logger = logging.getLogger("context8.search")
 
@@ -45,9 +44,9 @@ class SearchEngine:
         self,
         query: str,
         code_context: str = "",
-        language: Optional[str] = None,
-        framework: Optional[str] = None,
-        error_type: Optional[str] = None,
+        language: str | None = None,
+        framework: str | None = None,
+        error_type: str | None = None,
         resolved_only: bool = True,
         limit: int = 5,
         score_threshold: float = SCORE_THRESHOLD,
@@ -116,10 +115,7 @@ class SearchEngine:
             logger.debug(f"Code context search not available: {e}")
 
         # ── Sparse search on "keywords" ───────────────────────────────────
-        if (
-            self.storage.sparse_supported
-            and query_vectors.get("keywords_indices")
-        ):
+        if self.storage.sparse_supported and query_vectors.get("keywords_indices"):
             try:
                 sparse_results = self.storage.client.points.search(
                     COLLECTION_NAME,
@@ -157,11 +153,13 @@ class SearchEngine:
                 continue
             try:
                 record = ResolutionRecord.from_payload(str(r.id), r.payload)
-                results.append(SearchResult(
-                    record=record,
-                    score=r.score,
-                    match_type="hybrid" if len(result_lists) > 1 else "dense",
-                ))
+                results.append(
+                    SearchResult(
+                        record=record,
+                        score=r.score,
+                        match_type="hybrid" if len(result_lists) > 1 else "dense",
+                    )
+                )
             except Exception as e:
                 logger.warning(f"Failed to parse result {r.id}: {e}")
                 continue
@@ -171,7 +169,7 @@ class SearchEngine:
     def search_by_problem(
         self,
         query: str,
-        language: Optional[str] = None,
+        language: str | None = None,
         limit: int = 5,
     ) -> list[SearchResult]:
         """Simple dense search on problem vector only."""
@@ -212,7 +210,7 @@ class SearchEngine:
         self,
         problem_text: str,
         threshold: float = DEDUP_THRESHOLD,
-    ) -> Optional[SearchResult]:
+    ) -> SearchResult | None:
         """Check if a very similar problem already exists."""
         results = self.search_by_problem(problem_text, limit=1)
         if results and results[0].score >= threshold:
@@ -221,9 +219,9 @@ class SearchEngine:
 
     def _build_filter(
         self,
-        language: Optional[str] = None,
-        framework: Optional[str] = None,
-        error_type: Optional[str] = None,
+        language: str | None = None,
+        framework: str | None = None,
+        error_type: str | None = None,
         resolved_only: bool = False,
     ):
         """Build Actian filter from search parameters."""
@@ -252,13 +250,33 @@ class QueryAnalyzer:
     """Analyze queries to optimize search weights."""
 
     ERROR_PATTERNS = [
-        "Error", "Exception", "Traceback", "FATAL", "panic",
-        "error:", "ERR_", "E0", "TS2",
+        "Error",
+        "Exception",
+        "Traceback",
+        "FATAL",
+        "panic",
+        "error:",
+        "ERR_",
+        "E0",
+        "TS2",
     ]
     CODE_PATTERNS = [
-        "def ", "function ", "class ", "import ", "from ",
-        "const ", "let ", "var ", "fn ", "pub ", "async ",
-        "=>", "->", "::", "&&", "||",
+        "def ",
+        "function ",
+        "class ",
+        "import ",
+        "from ",
+        "const ",
+        "let ",
+        "var ",
+        "fn ",
+        "pub ",
+        "async ",
+        "=>",
+        "->",
+        "::",
+        "&&",
+        "||",
     ]
 
     @classmethod

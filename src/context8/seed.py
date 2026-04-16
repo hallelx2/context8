@@ -7,10 +7,9 @@ uncommon errors that don't appear in official documentation.
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
-from .models import ResolutionRecord
 from .embeddings import EmbeddingService
+from .models import ResolutionRecord
 from .storage import StorageService
 
 logger = logging.getLogger("context8.seed")
@@ -224,7 +223,7 @@ SEED_DATA: list[dict] = [
 
 
 def seed_database(
-    storage: Optional[StorageService] = None,
+    storage: StorageService | None = None,
     host: str = "localhost",
     port: int = 50051,
 ) -> int:
@@ -261,8 +260,7 @@ def seed_database(
             storage.store_record(record, vectors)
             count += 1
             logger.info(
-                f"[{count}/{len(SEED_DATA)}] {record.error_type}: "
-                f"{record.problem_text[:60]}..."
+                f"[{count}/{len(SEED_DATA)}] {record.error_type}: {record.problem_text[:60]}..."
             )
         except Exception as e:
             logger.warning(f"Failed to seed record: {e}")

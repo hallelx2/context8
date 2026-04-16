@@ -9,9 +9,8 @@ from __future__ import annotations
 import hashlib
 import logging
 import re
-from typing import Optional
 
-from .config import TEXT_MODEL, CODE_MODEL, SPARSE_VOCAB_SIZE
+from .config import CODE_MODEL, SPARSE_VOCAB_SIZE, TEXT_MODEL
 
 logger = logging.getLogger("context8.embeddings")
 
@@ -67,7 +66,7 @@ class EmbeddingService:
     def _cache_key(self, text: str, model_tag: str) -> str:
         return hashlib.md5(f"{model_tag}:{text[:500]}".encode()).hexdigest()
 
-    def _get_cached(self, text: str, model_tag: str) -> Optional[list[float]]:
+    def _get_cached(self, text: str, model_tag: str) -> list[float] | None:
         key = self._cache_key(text, model_tag)
         return self._cache.get(key)
 
@@ -86,9 +85,7 @@ class EmbeddingService:
         if cached is not None:
             return cached
 
-        embedding = self.text_model.encode(
-            text, normalize_embeddings=True
-        )
+        embedding = self.text_model.encode(text, normalize_embeddings=True)
         result = embedding.tolist()
         self._set_cached(text, "text", result)
         return result
@@ -103,9 +100,7 @@ class EmbeddingService:
         if cached is not None:
             return cached
 
-        embedding = self.code_model.encode(
-            code, normalize_embeddings=True
-        )
+        embedding = self.code_model.encode(code, normalize_embeddings=True)
         result = embedding.tolist()
         self._set_cached(code, "code", result)
         return result
@@ -152,9 +147,9 @@ class EmbeddingService:
         """
         tokens = re.findall(
             r"[A-Z][a-zA-Z]*(?:Error|Exception)"  # Error/Exception classes
-            r"|[a-zA-Z_][\w]*"                      # identifiers
-            r"|\d+\.\d+(?:\.\d+)?"                  # version numbers
-            r"|[a-zA-Z0-9_.\-/\\]+",                # paths and compound tokens
+            r"|[a-zA-Z_][\w]*"  # identifiers
+            r"|\d+\.\d+(?:\.\d+)?"  # version numbers
+            r"|[a-zA-Z0-9_.\-/\\]+",  # paths and compound tokens
             text,
         )
         result = []

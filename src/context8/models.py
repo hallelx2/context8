@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Optional
 from uuid import uuid4
 
 
@@ -37,14 +36,10 @@ class ResolutionRecord:
 
     # ── Auto-populated ────────────────────────────────────────────────────
     id: str = field(default_factory=lambda: str(uuid4()))
-    timestamp: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     occurrence_count: int = 1
     resolution_time_secs: int = 0
-    last_seen: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    last_seen: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     source: str = "local"
 
     def to_payload(self) -> dict:

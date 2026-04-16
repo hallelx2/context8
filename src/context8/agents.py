@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
-from typing import Optional
 
-from .config import SUPPORTED_AGENTS, get_server_command, DB_HOST, DB_PORT
+from .config import DB_HOST, DB_PORT, SUPPORTED_AGENTS, get_server_command
 
 
 def _build_mcp_entry(fmt: str) -> dict:
@@ -152,11 +150,13 @@ def list_agents_status() -> list[dict]:
         config_path: Path = agent["config_path_fn"]()
         config = _read_json(config_path)
         is_configured = "context8" in config.get(agent["config_key"], {})
-        results.append({
-            "key": key,
-            "name": agent["name"],
-            "config_path": str(config_path),
-            "configured": is_configured,
-            "config_exists": config_path.exists(),
-        })
+        results.append(
+            {
+                "key": key,
+                "name": agent["name"],
+                "config_path": str(config_path),
+                "configured": is_configured,
+                "config_exists": config_path.exists(),
+            }
+        )
     return results

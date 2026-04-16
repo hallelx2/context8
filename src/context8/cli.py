@@ -17,20 +17,19 @@ Usage:
 from __future__ import annotations
 
 import subprocess
-import sys
 from pathlib import Path
 
 import click
-from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
 from rich import box
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
 
 from . import __version__
 from .config import (
-    SUPPORTED_AGENTS,
-    DB_URL,
     COLLECTION_NAME,
+    DB_URL,
+    SUPPORTED_AGENTS,
     project_root,
 )
 
@@ -127,7 +126,7 @@ def start(detach: bool):
     for i in range(30):
         ok, info = _check_db_connection()
         if ok:
-            console.print(f" [green]ready![/]")
+            console.print(" [green]ready![/]")
             console.print(f"  Connected to {info}")
             console.print(f"  gRPC endpoint: [cyan]{DB_URL}[/]\n")
             return
@@ -225,10 +224,10 @@ def add(agent: str):
         # Show what to do next
         agent_name = SUPPORTED_AGENTS[agent]["name"]
         console.print(f"\n  [dim]Restart {agent_name} to pick up the new MCP server.[/]")
-        console.print(f"  [dim]The agent will now have access to:[/]")
-        console.print(f"    • [cyan]context8_search[/] — Search past solutions")
-        console.print(f"    • [cyan]context8_log[/]    — Log new solutions")
-        console.print(f"    • [cyan]context8_stats[/]  — Knowledge base stats")
+        console.print("  [dim]The agent will now have access to:[/]")
+        console.print("    • [cyan]context8_search[/] — Search past solutions")
+        console.print("    • [cyan]context8_log[/]    — Log new solutions")
+        console.print("    • [cyan]context8_stats[/]  — Knowledge base stats")
     else:
         console.print(f"[red]✗[/] {message}")
         raise SystemExit(1)
@@ -316,9 +315,7 @@ def doctor():
 
     # 1. Docker running?
     try:
-        result = subprocess.run(
-            ["docker", "info"], capture_output=True, text=True, timeout=5
-        )
+        result = subprocess.run(["docker", "info"], capture_output=True, text=True, timeout=5)
         docker_ok = result.returncode == 0
         checks.append(("Docker", docker_ok, "running" if docker_ok else "not running"))
     except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -334,11 +331,13 @@ def doctor():
         )
         container_status = result.stdout.strip()
         container_ok = bool(container_status) and "Up" in container_status
-        checks.append((
-            "Container (context8_db)",
-            container_ok,
-            container_status if container_status else "not running — run: context8 start",
-        ))
+        checks.append(
+            (
+                "Container (context8_db)",
+                container_ok,
+                container_status if container_status else "not running — run: context8 start",
+            )
+        )
     except Exception:
         checks.append(("Container", False, "cannot check"))
 
@@ -358,11 +357,15 @@ def doctor():
             storage = StorageService()
             col_exists = storage.collection_exists()
             total = storage.count() if col_exists else 0
-            checks.append((
-                "Collection",
-                col_exists,
-                f"'{COLLECTION_NAME}' ({total} records)" if col_exists else "not found — run: context8 init",
-            ))
+            checks.append(
+                (
+                    "Collection",
+                    col_exists,
+                    f"'{COLLECTION_NAME}' ({total} records)"
+                    if col_exists
+                    else "not found — run: context8 init",
+                )
+            )
             storage.close()
         except Exception as e:
             checks.append(("Collection", False, str(e)))
@@ -372,13 +375,21 @@ def doctor():
     # 6. Embedding models importable?
     try:
         from sentence_transformers import SentenceTransformer  # noqa: F401
+
         checks.append(("sentence-transformers", True, "installed"))
     except ImportError:
-        checks.append(("sentence-transformers", False, "not installed — pip install sentence-transformers"))
+        checks.append(
+            (
+                "sentence-transformers",
+                False,
+                "not installed — pip install sentence-transformers",
+            )
+        )
 
     # 7. MCP SDK importable?
     try:
         import mcp  # noqa: F401
+
         checks.append(("MCP SDK", True, "installed"))
     except ImportError:
         checks.append(("MCP SDK", False, "not installed — pip install mcp"))
@@ -426,6 +437,7 @@ def serve():
     it's started automatically by the agent via the MCP config.
     """
     import asyncio
+
     from .server import run_server
 
     asyncio.run(run_server())
@@ -448,9 +460,9 @@ def search_cmd(query: str, language: str | None, framework: str | None, limit: i
         console.print(f"[red]✗ Cannot connect:[/] {info}\n")
         raise SystemExit(1)
 
-    from .storage import StorageService
     from .embeddings import EmbeddingService
     from .search import SearchEngine
+    from .storage import StorageService
 
     storage = StorageService()
     embeddings = EmbeddingService()
@@ -485,12 +497,14 @@ def search_cmd(query: str, language: str | None, framework: str | None, limit: i
         if meta_parts:
             panel_content.append(f"[dim]{' · '.join(meta_parts)}[/]")
 
-        console.print(Panel(
-            "\n".join(panel_content),
-            title=f"Result {i} — score: {result.score:.3f} — confidence: {r.confidence:.0%}",
-            border_style="green" if result.score > 0.5 else "yellow",
-            box=box.ROUNDED,
-        ))
+        console.print(
+            Panel(
+                "\n".join(panel_content),
+                title=f"Result {i} — score: {result.score:.3f} — confidence: {r.confidence:.0%}",
+                border_style="green" if result.score > 0.5 else "yellow",
+                box=box.ROUNDED,
+            )
+        )
 
     storage.close()
     console.print()

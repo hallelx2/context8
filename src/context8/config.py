@@ -16,9 +16,9 @@ COLLECTION_NAME = "context8_store"
 
 # ── Vector Dimensions ─────────────────────────────────────────────────────────
 
-TEXT_EMBED_DIM = 384      # sentence-transformers/all-MiniLM-L6-v2
-CODE_EMBED_DIM = 768      # microsoft/codebert-base
-SPARSE_VOCAB_SIZE = 30000 # BM25 hash space
+TEXT_EMBED_DIM = 384  # sentence-transformers/all-MiniLM-L6-v2
+CODE_EMBED_DIM = 768  # microsoft/codebert-base
+SPARSE_VOCAB_SIZE = 30000  # BM25 hash space
 
 # ── Model Names ───────────────────────────────────────────────────────────────
 
@@ -49,6 +49,7 @@ COLD_START_THRESHOLD = 100  # Exit cold-start mode after this many records
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 
+
 def _home() -> Path:
     return Path.home()
 
@@ -65,6 +66,7 @@ def project_root() -> Path:
 
 
 # ── Agent Config Paths ────────────────────────────────────────────────────────
+
 
 def _get_os() -> str:
     return platform.system().lower()
@@ -96,6 +98,7 @@ def continue_config_path() -> Path:
 
 
 # ── MCP Server Command ────────────────────────────────────────────────────────
+
 
 def get_server_command() -> list[str]:
     """Return the command to start the Context8 MCP server."""
