@@ -66,35 +66,53 @@ def project_root() -> Path:
 
 
 # ── Agent Config Paths ────────────────────────────────────────────────────────
+# Verified from real installations on this machine:
+#   Claude Code:   ~/.claude/settings.json           → mcpServers
+#   Claude Desktop: ~/AppData/Roaming/Claude/...json → mcpServers
+#   Cursor:        ~/.cursor/mcp.json                → mcpServers
+#   VS Code:       ~/.vscode/mcp.json                → servers  (different key!)
+#   Gemini CLI:    ~/.gemini/antigravity/mcp_config.json → mcpServers
+#   Windsurf:      ~/.windsurf/mcp.json              → mcpServers
 
 
 def _get_os() -> str:
     return platform.system().lower()
 
 
-def claude_global_config_path() -> Path:
+def claude_code_config_path() -> Path:
     """~/.claude/settings.json — Claude Code global MCP settings."""
     return _home() / ".claude" / "settings.json"
 
 
-def claude_project_config_path() -> Path:
-    """<project>/.claude/settings.json — Claude Code project-level MCP settings."""
-    return Path.cwd() / ".claude" / "settings.json"
+def claude_desktop_config_path() -> Path:
+    """Claude Desktop app config — varies by OS."""
+    system = _get_os()
+    if system == "windows":
+        return Path(os.environ.get("APPDATA", "")) / "Claude" / "claude_desktop_config.json"
+    elif system == "darwin":
+        return _home() / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
+    else:
+        return _home() / ".config" / "Claude" / "claude_desktop_config.json"
 
 
 def cursor_config_path() -> Path:
-    """<project>/.cursor/mcp.json — Cursor MCP settings."""
-    return Path.cwd() / ".cursor" / "mcp.json"
+    """~/.cursor/mcp.json — Cursor global MCP settings."""
+    return _home() / ".cursor" / "mcp.json"
+
+
+def vscode_config_path() -> Path:
+    """~/.vscode/mcp.json — VS Code (Copilot) global MCP settings."""
+    return _home() / ".vscode" / "mcp.json"
 
 
 def windsurf_config_path() -> Path:
-    """<project>/.windsurf/mcp.json — Windsurf MCP settings."""
-    return Path.cwd() / ".windsurf" / "mcp.json"
+    """~/.windsurf/mcp.json — Windsurf global MCP settings."""
+    return _home() / ".windsurf" / "mcp.json"
 
 
-def continue_config_path() -> Path:
-    """~/.continue/config.json — Continue MCP settings."""
-    return _home() / ".continue" / "config.json"
+def gemini_config_path() -> Path:
+    """~/.gemini/antigravity/mcp_config.json — Gemini CLI MCP settings."""
+    return _home() / ".gemini" / "antigravity" / "mcp_config.json"
 
 
 # ── MCP Server Command ────────────────────────────────────────────────────────
@@ -108,28 +126,40 @@ def get_server_command() -> list[str]:
 # ── Agent Registry ────────────────────────────────────────────────────────────
 
 SUPPORTED_AGENTS = {
-    "claude": {
+    "claude-code": {
         "name": "Claude Code",
-        "config_path_fn": claude_global_config_path,
+        "config_path_fn": claude_code_config_path,
         "config_key": "mcpServers",
-        "format": "claude",
+        "format": "standard",
     },
-    "claude-project": {
-        "name": "Claude Code (project)",
-        "config_path_fn": claude_project_config_path,
+    "claude-desktop": {
+        "name": "Claude Desktop",
+        "config_path_fn": claude_desktop_config_path,
         "config_key": "mcpServers",
-        "format": "claude",
+        "format": "standard",
     },
     "cursor": {
         "name": "Cursor",
         "config_path_fn": cursor_config_path,
         "config_key": "mcpServers",
-        "format": "cursor",
+        "format": "standard",
+    },
+    "vscode": {
+        "name": "VS Code (Copilot)",
+        "config_path_fn": vscode_config_path,
+        "config_key": "servers",
+        "format": "vscode",
     },
     "windsurf": {
         "name": "Windsurf",
         "config_path_fn": windsurf_config_path,
         "config_key": "mcpServers",
-        "format": "cursor",  # Same format as Cursor
+        "format": "standard",
+    },
+    "gemini": {
+        "name": "Gemini CLI",
+        "config_path_fn": gemini_config_path,
+        "config_key": "mcpServers",
+        "format": "standard",
     },
 }

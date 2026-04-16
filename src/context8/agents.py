@@ -1,4 +1,13 @@
-"""Agent configuration management — add/remove Context8 from coding agents."""
+"""Agent configuration management — add/remove Context8 from coding agents.
+
+Supports:
+  Claude Code      ~/.claude/settings.json          mcpServers  { command, args, env }
+  Claude Desktop   ~/AppData/.../claude_desktop_...  mcpServers  { command, args, env }
+  Cursor           ~/.cursor/mcp.json               mcpServers  { command, args }
+  VS Code (Copilot) ~/.vscode/mcp.json              servers     { command, args, type }
+  Windsurf         ~/.windsurf/mcp.json              mcpServers  { command, args }
+  Gemini CLI       ~/.gemini/.../mcp_config.json     mcpServers  { command, args }
+"""
 
 from __future__ import annotations
 
@@ -12,7 +21,15 @@ def _build_mcp_entry(fmt: str) -> dict:
     """Build the MCP server config entry for a given agent format."""
     cmd = get_server_command()
 
-    if fmt == "claude":
+    if fmt == "vscode":
+        # VS Code uses "servers" key with "type": "stdio"
+        return {
+            "command": cmd[0],
+            "args": cmd[1:],
+            "type": "stdio",
+        }
+    else:
+        # Standard format: Claude Code, Claude Desktop, Cursor, Windsurf, Gemini
         return {
             "command": cmd[0],
             "args": cmd[1:],
@@ -20,17 +37,6 @@ def _build_mcp_entry(fmt: str) -> dict:
                 "CONTEXT8_DB_HOST": DB_HOST,
                 "CONTEXT8_DB_PORT": str(DB_PORT),
             },
-        }
-    elif fmt == "cursor":
-        return {
-            "command": cmd[0],
-            "args": cmd[1:],
-        }
-    else:
-        # Generic fallback
-        return {
-            "command": cmd[0],
-            "args": cmd[1:],
         }
 
 
@@ -74,7 +80,7 @@ def add_to_agent(agent_key: str) -> tuple[bool, str]:
     # Read existing config
     config = _read_json(config_path)
 
-    # Ensure the mcpServers key exists
+    # Ensure the servers key exists
     if config_key not in config:
         config[config_key] = {}
 
@@ -112,7 +118,7 @@ def remove_from_agent(agent_key: str) -> tuple[bool, str]:
 
     del config[config_key]["context8"]
 
-    # Clean up empty mcpServers
+    # Clean up empty key
     if not config[config_key]:
         del config[config_key]
 

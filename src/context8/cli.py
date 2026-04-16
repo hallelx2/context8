@@ -202,16 +202,42 @@ def init(seed: bool, force: bool):
     console.print("[green]✓[/] Ready\n")
 
 
+# ── Agent name resolution ─────────────────────────────────────────────────────
+
+AGENT_ALIASES = {
+    "claude": "claude-code",
+    "desktop": "claude-desktop",
+    "code": "vscode",
+    "vs-code": "vscode",
+    "copilot": "vscode",
+}
+
+ALL_AGENT_CHOICES = sorted(set(list(SUPPORTED_AGENTS.keys()) + list(AGENT_ALIASES.keys())))
+
+
+def _resolve_agent(name: str) -> str:
+    """Resolve agent aliases to canonical names."""
+    return AGENT_ALIASES.get(name, name)
+
+
 # ── add ───────────────────────────────────────────────────────────────────────
 
 
 @main.command()
-@click.argument("agent", type=click.Choice(sorted(SUPPORTED_AGENTS.keys())))
+@click.argument("agent", type=click.Choice(ALL_AGENT_CHOICES))
 def add(agent: str):
     """Add Context8 to a coding agent's MCP configuration.
 
-    Supported agents: claude, claude-project, cursor, windsurf
+    \b
+    Agents:
+      claude / claude-code     Claude Code      (~/.claude/settings.json)
+      claude-desktop / desktop Claude Desktop    (claude_desktop_config.json)
+      cursor                   Cursor            (~/.cursor/mcp.json)
+      vscode / code / copilot  VS Code Copilot   (~/.vscode/mcp.json)
+      windsurf                 Windsurf          (~/.windsurf/mcp.json)
+      gemini                   Gemini CLI        (~/.gemini/.../mcp_config.json)
     """
+    agent = _resolve_agent(agent)
     console.print(f"\n[bold blue]Context8[/] Adding to {SUPPORTED_AGENTS[agent]['name']}...\n")
 
     from .agents import add_to_agent
@@ -221,7 +247,6 @@ def add(agent: str):
     if ok:
         console.print(f"[green]✓[/] {message}")
 
-        # Show what to do next
         agent_name = SUPPORTED_AGENTS[agent]["name"]
         console.print(f"\n  [dim]Restart {agent_name} to pick up the new MCP server.[/]")
         console.print("  [dim]The agent will now have access to:[/]")
@@ -239,9 +264,10 @@ def add(agent: str):
 
 
 @main.command()
-@click.argument("agent", type=click.Choice(sorted(SUPPORTED_AGENTS.keys())))
+@click.argument("agent", type=click.Choice(ALL_AGENT_CHOICES))
 def remove(agent: str):
     """Remove Context8 from a coding agent's MCP configuration."""
+    agent = _resolve_agent(agent)
     console.print(f"\n[bold blue]Context8[/] Removing from {SUPPORTED_AGENTS[agent]['name']}...\n")
 
     from .agents import remove_from_agent

@@ -46,7 +46,7 @@ class TestAddToAgent:
                     "name": "Claude Code",
                     "config_path_fn": lambda: config_path,
                     "config_key": "mcpServers",
-                    "format": "claude",
+                    "format": "standard",
                 }
             },
         ):
@@ -71,7 +71,7 @@ class TestAddToAgent:
                     "name": "Claude Code",
                     "config_path_fn": lambda: config_path,
                     "config_key": "mcpServers",
-                    "format": "claude",
+                    "format": "standard",
                 }
             },
         ):
@@ -91,7 +91,7 @@ class TestAddToAgent:
                     "name": "Claude Code",
                     "config_path_fn": lambda: config_path,
                     "config_key": "mcpServers",
-                    "format": "claude",
+                    "format": "standard",
                 }
             },
         ):
@@ -118,7 +118,7 @@ class TestRemoveFromAgent:
                     "name": "Claude Code",
                     "config_path_fn": lambda: config_path,
                     "config_key": "mcpServers",
-                    "format": "claude",
+                    "format": "standard",
                 }
             },
         ):
@@ -139,7 +139,7 @@ class TestRemoveFromAgent:
                     "name": "Claude Code",
                     "config_path_fn": lambda: config_path,
                     "config_key": "mcpServers",
-                    "format": "claude",
+                    "format": "standard",
                 }
             },
         ):
