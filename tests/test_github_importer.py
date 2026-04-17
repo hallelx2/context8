@@ -85,9 +85,7 @@ class TestImporterRecordBuilding:
                     "updated_at": "2025-02-01T00:00:00Z",
                 }
             ],
-            comments_by_issue={
-                42: [{"body": "the fix is to add a null check before .map()"}]
-            },
+            comments_by_issue={42: [{"body": "the fix is to add a null check before .map()"}]},
         )
         records = importer.to_records("user/repo", fetched, require_resolution=True)
         assert len(records) == 1

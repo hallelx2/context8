@@ -146,9 +146,7 @@ def doctor():
                 try:
                     import actian_vectorai as _av
 
-                    _filter = (
-                        _av.FilterBuilder().must(_av.Field("language").eq("python")).build()
-                    )
+                    _filter = _av.FilterBuilder().must(_av.Field("language").eq("python")).build()
                     _zero = [0.0] * 384
                     storage.client.points.search(
                         COLLECTION_NAME,

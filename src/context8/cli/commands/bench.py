@@ -165,9 +165,7 @@ def demo():
     )
     _show_top(by_solution, "[1c] via 'solution' vector — approach query", "yellow")
 
-    console.print(
-        "  [dim]→ Same record reachable from three independent semantic spaces.[/]\n"
-    )
+    console.print("  [dim]→ Same record reachable from three independent semantic spaces.[/]\n")
 
     console.print(
         "\n[bold]Scenario 2.[/] [italic]Hybrid fusion —[/] "

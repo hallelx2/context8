@@ -86,9 +86,18 @@ def list_tools() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "problem": {"type": "string", "description": "What went wrong — the error, symptoms, context"},
-                    "solution": {"type": "string", "description": "How you fixed it — what you changed and why"},
-                    "error_type": {"type": "string", "description": "Error class (TypeError, ImportError, etc.)"},
+                    "problem": {
+                        "type": "string",
+                        "description": "What went wrong — the error, symptoms, context",
+                    },
+                    "solution": {
+                        "type": "string",
+                        "description": "How you fixed it — what you changed and why",
+                    },
+                    "error_type": {
+                        "type": "string",
+                        "description": "Error class (TypeError, ImportError, etc.)",
+                    },
                     "code_snippet": {"type": "string", "description": "The fix code"},
                     "code_diff": {"type": "string", "description": "Before/after diff"},
                     "stack_trace": {"type": "string", "description": "Relevant stack trace"},
@@ -125,9 +134,18 @@ def list_tools() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "record_id": {"type": "string", "description": "The id of the Context8 record you applied"},
-                    "worked": {"type": "boolean", "description": "Did the solution fix the problem?"},
-                    "notes": {"type": "string", "description": "Optional one-line note about the outcome"},
+                    "record_id": {
+                        "type": "string",
+                        "description": "The id of the Context8 record you applied",
+                    },
+                    "worked": {
+                        "type": "boolean",
+                        "description": "Did the solution fix the problem?",
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Optional one-line note about the outcome",
+                    },
                 },
                 "required": ["record_id", "worked"],
             },
@@ -142,9 +160,16 @@ def list_tools() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "approach": {"type": "string", "description": "Description of the solution approach"},
+                    "approach": {
+                        "type": "string",
+                        "description": "Description of the solution approach",
+                    },
                     "language": {"type": "string", "description": "Optional language filter"},
-                    "limit": {"type": "integer", "description": "Max results (default 5)", "default": 5},
+                    "limit": {
+                        "type": "integer",
+                        "description": "Max results (default 5)",
+                        "default": 5,
+                    },
                 },
                 "required": ["approach"],
             },

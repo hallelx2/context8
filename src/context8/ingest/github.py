@@ -260,8 +260,7 @@ class GitHubIssueImporter:
         except urllib.error.HTTPError as e:
             if e.code == 403:
                 raise RuntimeError(
-                    "GitHub API returned 403 (rate limited). "
-                    "Set GITHUB_TOKEN to raise the limit."
+                    "GitHub API returned 403 (rate limited). Set GITHUB_TOKEN to raise the limit."
                 ) from e
             raise
 

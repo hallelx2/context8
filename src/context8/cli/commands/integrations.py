@@ -27,9 +27,7 @@ def _resolve(name: str) -> str:
 def add(agent: str):
     """Add Context8 to a coding agent's MCP configuration."""
     canonical = _resolve(agent)
-    console.print(
-        f"\n[bold blue]Context8[/] Adding to {SUPPORTED_AGENTS[canonical]['name']}...\n"
-    )
+    console.print(f"\n[bold blue]Context8[/] Adding to {SUPPORTED_AGENTS[canonical]['name']}...\n")
 
     from ...agents import add_to_agent
 

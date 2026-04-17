@@ -138,9 +138,7 @@ class TestCollectionShape:
         assert info is not None
         # Either we discovered them via introspection, or the fallback list
         # of 3 is used. Either way the count should be 3 in success path.
-        assert len(info["vectors"]) >= 3, (
-            f"Expected ≥3 named vectors, got {info['vectors']}"
-        )
+        assert len(info["vectors"]) >= 3, f"Expected ≥3 named vectors, got {info['vectors']}"
 
     def test_sparse_vectors_present_or_explicitly_disabled(self, storage):
         # Either sparse is enabled, or we explicitly know it isn't (so the
@@ -310,9 +308,7 @@ class TestAttribution:
 
         storage, _ = seeded
         engine = SearchEngine(storage, embeddings)
-        results = engine.search(
-            "ERESOLVE peer dep mismatch", resolved_only=False, limit=3
-        )
+        results = engine.search("ERESOLVE peer dep mismatch", resolved_only=False, limit=3)
         assert results
         assert results[0].attribution.contributions
         strategies = {c.strategy for c in results[0].attribution.contributions}

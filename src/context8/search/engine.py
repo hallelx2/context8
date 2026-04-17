@@ -99,11 +99,7 @@ class SearchEngine:
                 fusion_weights.append(weights["code"])
                 tracker.record("code_context", code_results)
 
-        if (
-            use_sparse
-            and self.storage.sparse_supported
-            and query_vectors.get("keywords_indices")
-        ):
+        if use_sparse and self.storage.sparse_supported and query_vectors.get("keywords_indices"):
             sparse_results = self._search_sparse(
                 query_vectors["keywords_values"],
                 query_vectors["keywords_indices"],
