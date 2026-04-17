@@ -1,5 +1,5 @@
-"""Allow running Context8 as: python -m context8"""
+from __future__ import annotations
 
-from context8.cli import main
+from .cli import main
 
 main()

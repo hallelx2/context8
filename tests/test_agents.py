@@ -59,7 +59,7 @@ class TestAddToAgent:
             assert "context8" in data["mcpServers"]
             entry = data["mcpServers"]["context8"]
             assert entry["command"] == "python"
-            assert entry["args"] == ["-m", "context8.server"]
+            assert entry["args"] == ["-m", "context8.mcp.server"]
 
     def test_idempotent(self, tmp_path):
         config_path = tmp_path / "settings.json"

@@ -1,39 +1,25 @@
-"""Context8 MCP Server — exposes tools to coding agents.
-
-Started automatically by agents via MCP config, or manually with:
-    context8 serve
-    python -m context8.server
-"""
-
 from __future__ import annotations
 
-import logging
 import platform
-import threading
 from typing import Any
 
-from mcp.server import Server
-from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
-from .config import COLLECTION_NAME, DB_URL
-from .embeddings import EmbeddingService
-from .models import ResolutionRecord
-from .search import SearchEngine
-from .storage import StorageService
-
-logger = logging.getLogger("context8")
-
-# ── Service Singletons ────────────────────────────────────────────────────────
+from ..config import COLLECTION_NAME, DB_URL
+from ..embeddings import EmbeddingService
+from ..feedback import FeedbackService
+from ..models import ResolutionRecord, SearchResult
+from ..search import SearchEngine
+from ..storage import StorageService
 
 _embedding_service: EmbeddingService | None = None
 _storage_service: StorageService | None = None
 _search_engine: SearchEngine | None = None
+_feedback_service: FeedbackService | None = None
 
 
-def _get_services() -> tuple[EmbeddingService, StorageService, SearchEngine]:
-    """Lazy-init and return service singletons."""
-    global _embedding_service, _storage_service, _search_engine
+def get_services() -> tuple[EmbeddingService, StorageService, SearchEngine, FeedbackService]:
+    global _embedding_service, _storage_service, _search_engine, _feedback_service
 
     if _embedding_service is None:
         _embedding_service = EmbeddingService()
@@ -42,25 +28,21 @@ def _get_services() -> tuple[EmbeddingService, StorageService, SearchEngine]:
         _storage_service.initialize()
     if _search_engine is None:
         _search_engine = SearchEngine(_storage_service, _embedding_service)
+    if _feedback_service is None:
+        _feedback_service = FeedbackService(_storage_service, _embedding_service)
 
-    return _embedding_service, _storage_service, _search_engine
-
-
-# ── MCP Server ────────────────────────────────────────────────────────────────
-
-app = Server("context8")
+    return _embedding_service, _storage_service, _search_engine, _feedback_service
 
 
-@app.list_tools()
-async def list_tools() -> list[Tool]:
-    """Register Context8 tools."""
+def list_tools() -> list[Tool]:
     return [
         Tool(
             name="context8_search",
             description=(
                 "Search Context8 for past solutions to coding problems. "
                 "Returns semantically similar problems that were previously "
-                "solved by coding agents, with their solutions and code diffs. "
+                "solved by coding agents, with their solutions, code diffs, "
+                "confidence scores, and per-strategy attribution. "
                 "Use when you encounter an error that might have been solved before, "
                 "especially after your first fix attempt fails."
             ),
@@ -142,6 +124,57 @@ async def list_tools() -> list[Tool]:
             },
         ),
         Tool(
+            name="context8_rate",
+            description=(
+                "Report whether a previously-retrieved Context8 solution actually worked. "
+                "Call after you applied a solution returned by context8_search and observed "
+                "whether it fixed the problem. This feeds the worked-ratio re-ranker so "
+                "future agents see the most reliable fixes first."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "record_id": {
+                        "type": "string",
+                        "description": "The id of the Context8 record you applied",
+                    },
+                    "worked": {
+                        "type": "boolean",
+                        "description": "Did the solution fix the problem?",
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Optional one-line note about the outcome",
+                    },
+                },
+                "required": ["record_id", "worked"],
+            },
+        ),
+        Tool(
+            name="context8_search_solutions",
+            description=(
+                "Find past Context8 records whose *solution approach* matches a description. "
+                "Use this when you have a fix in mind ('add null guard', 'use exponential backoff') "
+                "and want to see how other agents have applied that approach in the past."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "approach": {
+                        "type": "string",
+                        "description": "Description of the solution approach",
+                    },
+                    "language": {"type": "string", "description": "Optional language filter"},
+                    "limit": {
+                        "type": "integer",
+                        "description": "Max results (default 5)",
+                        "default": 5,
+                    },
+                },
+                "required": ["approach"],
+            },
+        ),
+        Tool(
             name="context8_stats",
             description="Get Context8 knowledge base statistics — record count, health status, vector spaces.",
             inputSchema={"type": "object", "properties": {}},
@@ -149,29 +182,45 @@ async def list_tools() -> list[Tool]:
     ]
 
 
-@app.call_tool()
-async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
-    """Route tool calls to handlers."""
-    try:
-        if name == "context8_search":
-            return _handle_search(arguments)
-        elif name == "context8_log":
-            return _handle_log(arguments)
-        elif name == "context8_stats":
-            return _handle_stats(arguments)
-        else:
-            return [TextContent(type="text", text=f"Unknown tool: {name}")]
-    except Exception as e:
-        logger.error(f"Tool '{name}' failed: {e}", exc_info=True)
-        return [TextContent(type="text", text=f"Context8 error: {str(e)}")]
+def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
+    if name == "context8_search":
+        return _handle_search(arguments)
+    if name == "context8_log":
+        return _handle_log(arguments)
+    if name == "context8_rate":
+        return _handle_rate(arguments)
+    if name == "context8_search_solutions":
+        return _handle_search_solutions(arguments)
+    if name == "context8_stats":
+        return _handle_stats(arguments)
+    return [TextContent(type="text", text=f"Unknown tool: {name}")]
 
 
-# ── Tool Handlers ─────────────────────────────────────────────────────────────
+def _format_attribution(result: SearchResult) -> str:
+    if not result.attribution.contributions:
+        return result.match_type
+    parts = []
+    for c in sorted(result.attribution.contributions, key=lambda x: x.rank):
+        parts.append(f"{c.strategy}@{c.rank}({c.score:.2f})")
+    return " + ".join(parts)
+
+
+def _format_boosts(result: SearchResult) -> str:
+    if not result.boost_factors:
+        return ""
+    bits = [f"{name}={value:.2f}" for name, value in result.boost_factors.items()]
+    return f"  boosts: {', '.join(bits)}"
+
+
+def _format_feedback(record: ResolutionRecord) -> str:
+    fb = record.feedback
+    if fb.applied_count == 0:
+        return ""
+    return f"  feedback: {fb.worked_count}/{fb.applied_count} worked ({fb.worked_ratio:.0%})"
 
 
 def _handle_search(args: dict) -> list[TextContent]:
-    """Execute hybrid search and return formatted results."""
-    embeddings, storage, engine = _get_services()
+    _, _, engine, _ = get_services()
 
     results = engine.search(
         query=args["query"],
@@ -197,7 +246,10 @@ def _handle_search(args: dict) -> list[TextContent]:
 
     for i, result in enumerate(results, 1):
         r = result.record
-        lines.append(f"--- Solution {i} (score: {result.score:.3f}) ---")
+        lines.append(
+            f"--- Solution {i} (score: {result.score:.3f}, raw: {result.raw_score:.3f}) ---"
+        )
+        lines.append(f"Record ID: {r.id}")
         lines.append(f"Problem: {r.problem_text}")
         lines.append(f"Solution: {r.solution_text}")
         if r.code_diff:
@@ -217,14 +269,24 @@ def _handle_search(args: dict) -> list[TextContent]:
         if r.tags:
             lines.append(f"Tags: {', '.join(r.tags)}")
         lines.append(f"Confidence: {r.confidence:.0%}")
+        lines.append(f"Attribution: {_format_attribution(result)}")
+        boosts = _format_boosts(result)
+        if boosts:
+            lines.append(boosts)
+        feedback = _format_feedback(r)
+        if feedback:
+            lines.append(feedback)
+        lines.append(
+            "If you applied this solution, call context8_rate(record_id, worked) "
+            "to improve future ranking."
+        )
         lines.append("")
 
     return [TextContent(type="text", text="\n".join(lines))]
 
 
 def _handle_log(args: dict) -> list[TextContent]:
-    """Log a new resolution record."""
-    embeddings, storage, engine = _get_services()
+    embeddings, storage, engine, _ = get_services()
 
     record = ResolutionRecord(
         problem_text=args["problem"],
@@ -243,7 +305,6 @@ def _handle_log(args: dict) -> list[TextContent]:
         agent="mcp-agent",
     )
 
-    # Check for duplicates
     existing = engine.find_duplicate(record.problem_text)
     if existing:
         return [
@@ -256,7 +317,6 @@ def _handle_log(args: dict) -> list[TextContent]:
             )
         ]
 
-    # Embed and store
     vectors = embeddings.embed_record(
         problem_text=record.problem_text,
         solution_text=record.solution_text,
@@ -275,51 +335,70 @@ def _handle_log(args: dict) -> list[TextContent]:
     ]
 
 
-def _handle_stats(args: dict) -> list[TextContent]:
-    """Return knowledge base statistics."""
-    _, storage, _ = _get_services()
+def _handle_rate(args: dict) -> list[TextContent]:
+    _, _, _, feedback = get_services()
+    outcome = feedback.rate(
+        record_id=args["record_id"],
+        worked=bool(args["worked"]),
+        notes=args.get("notes", ""),
+    )
 
+    if not outcome.accepted:
+        return [
+            TextContent(
+                type="text",
+                text=f"Feedback not recorded: {outcome.note or 'unknown error'}",
+            )
+        ]
+
+    return [
+        TextContent(
+            type="text",
+            text=(
+                f"Feedback recorded for {outcome.record_id}. "
+                f"Worked ratio is now {outcome.worked_count}/{outcome.applied_count} "
+                f"({outcome.worked_ratio:.0%}). Future searches will weight this record accordingly."
+            ),
+        )
+    ]
+
+
+def _handle_search_solutions(args: dict) -> list[TextContent]:
+    _, _, engine, _ = get_services()
+    results = engine.search_by_solution(
+        approach=args["approach"],
+        language=args.get("language"),
+        limit=min(args.get("limit", 5), 20),
+    )
+
+    if not results:
+        return [TextContent(type="text", text="No matching solution approaches found in Context8.")]
+
+    lines = [f"Found {len(results)} matching approach(es):\n"]
+    for i, result in enumerate(results, 1):
+        r = result.record
+        lines.append(f"--- Approach {i} (score: {result.score:.3f}) ---")
+        lines.append(f"Record ID: {r.id}")
+        lines.append(f"Solution: {r.solution_text}")
+        lines.append(f"Originally for: {r.problem_text}")
+        lines.append("")
+    return [TextContent(type="text", text="\n".join(lines))]
+
+
+def _handle_stats(_args: dict) -> list[TextContent]:
+    _, storage, _, _ = get_services()
     total = storage.count()
-    collection_info = storage.get_collection_info()
-    status = collection_info.get("status", "unknown") if collection_info else "unknown"
+    info = storage.get_collection_info() or {}
+    status = info.get("status", "unknown")
 
     lines = [
         "Context8 Knowledge Base:",
         f"  Records:       {total}",
         f"  Collection:    {COLLECTION_NAME}",
         f"  Endpoint:      {DB_URL}",
-        "  Vector spaces: problem (384d), solution (384d), code_context (768d)",
-        f"  Sparse:        {'enabled' if storage.sparse_supported else 'disabled (fallback mode)'}",
+        f"  Named vectors: {info.get('named_vector_count', 0)} ({', '.join(info.get('vectors', []))})",
+        f"  Sparse:        {'enabled' if info.get('sparse_supported') else 'disabled'}",
+        f"  Hybrid ready:  {'yes' if info.get('hybrid_enabled') else 'no'}",
         f"  Status:        {status}",
     ]
-
     return [TextContent(type="text", text="\n".join(lines))]
-
-
-# ── Server Entrypoint ─────────────────────────────────────────────────────────
-
-
-async def run_server():
-    """Run the Context8 MCP server on stdio."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
-    )
-    logger.info("Context8 MCP server starting...")
-
-    # Warm up models in background
-    embeddings, _, _ = _get_services()
-    threading.Thread(target=embeddings.warmup, daemon=True).start()
-
-    async with stdio_server() as (read_stream, write_stream):
-        await app.run(
-            read_stream,
-            write_stream,
-            app.create_initialization_options(),
-        )
-
-
-if __name__ == "__main__":
-    import asyncio
-
-    asyncio.run(run_server())

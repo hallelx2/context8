@@ -212,12 +212,58 @@ context8 remove claude          # Remove from Claude Code
 ### Operations
 
 ```bash
-context8 stats                  # Show knowledge base statistics
-context8 doctor                 # Full health check (Docker, DB, SDK, models, agents)
-context8 search "query"         # Search from the command line
-context8 search "query" -l python  # Search with language filter
-context8 serve                  # Start MCP server (agents call this automatically)
+context8 stats                          # Show knowledge base statistics
+context8 doctor                         # Full health check (verifies named/sparse/hybrid/filter)
+context8 search "query"                 # Search from the command line, with attribution
+context8 search "query" -l python       # Search with language filter
+context8 bench                          # Run retrieval benchmark, print Recall@K table
+context8 demo                           # Scripted live demo of all advanced features
+context8 import-github vercel/next.js   # Pull resolved issues from a GitHub repo
+context8 serve                          # Start MCP server (agents call this automatically)
 ```
+
+---
+
+## What's in the box
+
+Five capabilities that turn the basic "MCP + vector DB" pattern into a production-grade framework:
+
+### 1. Real-world ingestion at scale
+
+Beyond the 24-record curated seed, Context8 ships an importer that pulls resolved issues straight from GitHub:
+
+```bash
+context8 import-github vercel/next.js --label bug --max-issues 50
+context8 import-github fastapi/fastapi --max-issues 30
+context8 import-github huggingface/transformers --label bug --max-issues 30
+```
+
+The importer scans the closing comments for resolution markers (`fixed in`, `the fix is`, `workaround:` …), extracts language/framework/error-type signals from labels and repo names, and stores everything as Context8 records. One command, hundreds of real production fixes in your DB.
+
+### 2. Agent feedback loop (`context8_rate`)
+
+Context8 is bidirectional. After an agent applies a retrieved fix, it calls `context8_rate(record_id, worked=True)`. The record's `worked_count`/`applied_count` updates and feeds straight into the ranker — solutions that consistently work float to the top, ones that fail sink. This is the closed feedback loop that turns a static knowledge base into a self-improving one.
+
+### 3. Per-strategy attribution
+
+Every search result tells you exactly which Actian strategy surfaced it and at what rank:
+
+```
+Result 1 — score: 0.812 (raw: 0.945) — confidence: 95%
+  via: keywords@1 (0.95) + problem@2 (0.78) + code_context@4 (0.61)
+  boosts: confidence 1.00  recency 0.94  worked_ratio 0.92
+  feedback: 7/8 worked (88%)
+```
+
+You can see the dense vector contributed less than the sparse keyword match, the recency factor barely penalized this record, and 8 prior agents have used this fix with 7 successes. The MCP tool returns the same attribution so agents can reason about result quality.
+
+### 4. Quality ranker (`search/ranking.py`)
+
+Final score = `retrieval × confidence_factor × recency_factor × worked_ratio_factor`. Each multiplier has a configurable floor (so a 0-confidence record loses at most 30%, never gets zeroed out), and feedback only kicks in once a record has been applied at least 3 times — preventing single bad ratings from sinking new solutions.
+
+### 5. Evaluation as a first-class artifact
+
+`context8 bench` ablates one Actian feature at a time over 27 ground-truth queries and prints a side-by-side table with green deltas. `context8 demo` runs four scripted scenarios (named vectors / hybrid fusion / filtered search / quality ranker) — designed as the script for a submission video.
 
 ---
 
@@ -263,13 +309,47 @@ context8 serve                  # Start MCP server (agents call this automatical
 
 > Built for the [Actian VectorAI DB Build Challenge](https://dorahacks.io/)
 
-This project uses **all three** advanced features required by the hackathon:
+This project uses **all three** advanced features required by the hackathon — and ships a benchmark that proves each one is load-bearing, not decorative.
 
 | Feature | How Context8 Uses It | Why It Matters |
 |---|---|---|
 | **Hybrid Fusion** | Dense semantic + sparse BM25 keyword vectors, fused with RRF | Error messages contain both *meaning* and *exact tokens* — you need both |
 | **Filtered Search** | Metadata filters by language, framework, error type, resolution status | A Python agent doesn't need TypeScript solutions |
-| **Named Vectors** | 3 separate spaces: `problem` (384d), `solution` (384d), `code_context` (768d) | Error descriptions, fix descriptions, and code are semantically different domains |
+| **Named Vectors** | 3 separate spaces: `problem` (384d), `solution` (384d), `code_context` (768d) — all three queried at runtime | Error descriptions, fix descriptions, and code are semantically different domains |
+
+### Prove it: `context8 bench`
+
+The benchmark ablates one feature at a time over a 27-query ground-truth set and prints a side-by-side comparison:
+
+```bash
+context8 init --seed
+context8 bench
+```
+
+The output table shows Recall@1, Recall@3, Recall@5, MRR, and p50 latency for four configurations — `dense only` → `+ named vectors` → `+ hybrid fusion` → `+ filtered search` — with green deltas vs the baseline. Each row turns on one more Actian feature. The deltas are the proof.
+
+### See it: `context8 demo`
+
+A live, scripted three-scenario walkthrough designed as the script for a submission video:
+
+```bash
+context8 demo
+```
+
+1. **Named vectors** — the same record retrieved three ways: by error text, by code pattern, by solution approach. One record, three independent vector spaces.
+2. **Hybrid fusion** — `ERESOLVE unable to resolve dependency tree` on dense-only vs. dense + sparse RRF, side by side.
+3. **Filtered search** — same query, language filter flipped between `python` and `javascript`, results swap server-side via `FilterBuilder`.
+
+### Verify it: `context8 doctor`
+
+The health check now asserts the three features are actually live — no silent degradation:
+
+```
+Named vectors (≥3)        ✓  3 found: code_context, problem, solution
+Sparse vectors            ✓  enabled: keywords
+Hybrid fusion ready       ✓  dense + sparse + RRF fusion available
+Filtered search           ✓  FilterBuilder query succeeded
+```
 
 ---
 
@@ -338,23 +418,48 @@ ruff format src/ tests/
 ```
 context8/
 ├── src/context8/
-│   ├── cli.py              # CLI commands (start/stop/init/add/remove/stats/doctor/search)
-│   ├── server.py           # MCP server (context8_search, context8_log, context8_stats)
-│   ├── agents.py           # Agent config management (add/remove from Claude/Cursor/etc.)
-│   ├── search.py           # Hybrid search engine + QueryAnalyzer
-│   ├── embeddings.py       # MiniLM + CodeBERT + BM25 pipeline
-│   ├── storage.py          # Actian VectorAI DB operations (with sparse fallback)
-│   ├── models.py           # ResolutionRecord dataclass
-│   ├── config.py           # Constants, paths, agent registry
-│   └── seed.py             # 24 curated problem-solution starter records
-├── tests/                  # 29 unit tests (models, tokenizer, agents, query analyzer)
-├── docs/                   # Architecture, 8 build plans, bottleneck analysis
-├── .github/workflows/
-│   ├── ci.yml              # Lint → Test (3.10 + 3.12) → Build
-│   └── publish.yml         # CI → Publish to PyPI → GitHub Release
+│   ├── __init__.py
+│   ├── __main__.py
+│   ├── config.py             # Constants, paths, agent registry, ranker tuning
+│   ├── models.py             # ResolutionRecord, FeedbackStats, Attribution, SearchResult
+│   ├── storage.py            # Actian VectorAI DB client (named + sparse fallback)
+│   ├── agents.py             # Editor MCP config writer (Claude/Cursor/Windsurf)
+│   ├── feedback.py           # FeedbackService — agent rate-this-fix loop
+│   ├── embeddings/
+│   │   ├── service.py        # MiniLM + CodeBERT lazy loaders
+│   │   └── tokenizer.py      # BM25 sparse tokenizer
+│   ├── search/
+│   │   ├── engine.py         # Hybrid search with ablation flags
+│   │   ├── analyzer.py       # QueryAnalyzer (per-query weight tuning)
+│   │   ├── ranking.py        # Confidence + recency + worked-ratio booster
+│   │   └── attribution.py    # Per-strategy score tracking
+│   ├── ingest/
+│   │   ├── pipeline.py       # Generic ingest pipeline
+│   │   ├── seed.py           # 24 curated problem-solution starter records
+│   │   └── github.py         # GitHub Issues importer (pull resolved bugs)
+│   ├── benchmark/
+│   │   ├── ground_truth.py   # 27 query→record evaluation pairs
+│   │   └── runner.py         # Recall@K / MRR / latency evaluator
+│   ├── mcp/
+│   │   ├── server.py         # MCP server entry point
+│   │   └── tools.py          # 5 MCP tools (search/log/rate/search_solutions/stats)
+│   └── cli/
+│       ├── main.py           # Click group entry
+│       ├── ui.py             # Rich helpers + DB connection check
+│       └── commands/
+│           ├── lifecycle.py  # start / stop / init
+│           ├── ops.py        # stats / doctor / search
+│           ├── integrations.py  # add / remove (editor configs)
+│           ├── bench.py      # bench / demo
+│           ├── ingest.py     # import-github
+│           └── serve.py      # serve (MCP)
+├── tests/                    # 79 unit tests + e2e suite
+├── docs/                     # Architecture + build plans
+├── .github/workflows/        # CI + PyPI release
 ├── docker-compose.yml
 ├── pyproject.toml
-└── CLAUDE.md               # Agent instructions for this codebase
+├── RESULTS.md                # Submission deliverable: bench numbers + narrative
+└── CLAUDE.md
 ```
 
 ### Releasing

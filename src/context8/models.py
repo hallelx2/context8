@@ -1,5 +1,3 @@
-"""Data models for Context8 resolution records."""
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -7,21 +5,46 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+@dataclass
+class FeedbackStats:
+    applied_count: int = 0
+    worked_count: int = 0
+
+    @property
+    def worked_ratio(self) -> float:
+        if self.applied_count == 0:
+            return 0.0
+        return self.worked_count / self.applied_count
+
+    def to_dict(self) -> dict:
+        return {
+            "applied_count": self.applied_count,
+            "worked_count": self.worked_count,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict | None) -> FeedbackStats:
+        data = data or {}
+        return cls(
+            applied_count=int(data.get("applied_count", 0)),
+            worked_count=int(data.get("worked_count", 0)),
+        )
+
+
 @dataclass
 class ResolutionRecord:
-    """A problem-solution pair stored in Context8."""
-
-    # ── Problem ───────────────────────────────────────────────────────────
     problem_text: str
     error_type: str = ""
     stack_trace: str = ""
 
-    # ── Solution ──────────────────────────────────────────────────────────
     solution_text: str = ""
     code_snippet: str = ""
     code_diff: str = ""
 
-    # ── Metadata ──────────────────────────────────────────────────────────
     language: str = ""
     framework: str = ""
     libraries: list[str] = field(default_factory=list)
@@ -30,20 +53,19 @@ class ResolutionRecord:
     os: str = ""
     file_path: str = ""
 
-    # ── Status ────────────────────────────────────────────────────────────
     resolved: bool = True
     confidence: float = 0.5
 
-    # ── Auto-populated ────────────────────────────────────────────────────
+    feedback: FeedbackStats = field(default_factory=FeedbackStats)
+
     id: str = field(default_factory=lambda: str(uuid4()))
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    timestamp: str = field(default_factory=_utc_now_iso)
     occurrence_count: int = 1
     resolution_time_secs: int = 0
-    last_seen: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    last_seen: str = field(default_factory=_utc_now_iso)
     source: str = "local"
 
     def to_payload(self) -> dict:
-        """Serialize to Actian VectorAI DB payload format."""
         return {
             "problem_text": self.problem_text,
             "error_type": self.error_type,
@@ -65,11 +87,11 @@ class ResolutionRecord:
             "resolution_time_secs": self.resolution_time_secs,
             "last_seen": self.last_seen,
             "source": self.source,
+            "feedback": self.feedback.to_dict(),
         }
 
     @classmethod
     def from_payload(cls, record_id: str, payload: dict) -> ResolutionRecord:
-        """Reconstruct from Actian VectorAI DB payload."""
         return cls(
             id=record_id,
             problem_text=payload.get("problem_text", ""),
@@ -92,13 +114,37 @@ class ResolutionRecord:
             resolution_time_secs=payload.get("resolution_time_secs", 0),
             last_seen=payload.get("last_seen", ""),
             source=payload.get("source", "local"),
+            feedback=FeedbackStats.from_dict(payload.get("feedback")),
         )
 
 
 @dataclass
-class SearchResult:
-    """A search result from Context8."""
+class StrategyContribution:
+    strategy: str
+    score: float
+    rank: int
 
+
+@dataclass
+class Attribution:
+    contributions: list[StrategyContribution] = field(default_factory=list)
+    fused: bool = False
+
+    @property
+    def strategies(self) -> list[str]:
+        return [c.strategy for c in self.contributions]
+
+    def best(self) -> StrategyContribution | None:
+        if not self.contributions:
+            return None
+        return min(self.contributions, key=lambda c: c.rank)
+
+
+@dataclass
+class SearchResult:
     record: ResolutionRecord
     score: float
-    match_type: str = "hybrid"  # "dense", "sparse", "hybrid", "dense_code"
+    raw_score: float = 0.0
+    match_type: str = "hybrid"
+    attribution: Attribution = field(default_factory=Attribution)
+    boost_factors: dict[str, float] = field(default_factory=dict)
