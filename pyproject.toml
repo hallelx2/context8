@@ -65,8 +65,8 @@ src = ["src"]
 select = ["E", "F", "I", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
-"src/context8/seed.py" = ["E501"]  # Seed data has long human-readable strings
-"src/context8/server.py" = ["E501"]  # MCP tool schemas have long description strings
+"src/context8/ingest/seed.py" = ["E501"]
+"src/context8/mcp/tools.py" = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,5 +1,3 @@
-"""Actian VectorAI DB storage layer for Context8."""
-
 from __future__ import annotations
 
 import logging
@@ -27,7 +25,6 @@ ACTIAN_INSTALL_HINT = (
 
 
 def _require_actian():
-    """Import and return actian_vectorai, or raise a clear error."""
     try:
         import actian_vectorai
 
@@ -37,8 +34,6 @@ def _require_actian():
 
 
 class StorageService:
-    """Manages all Actian VectorAI DB operations for Context8."""
-
     def __init__(self, url: str = DB_URL):
         self.url = url
         self._client: VectorAIClient | None = None
@@ -49,23 +44,16 @@ class StorageService:
         if self._client is None:
             av = _require_actian()
             self._client = av.VectorAIClient(self.url, timeout=10.0)
+            self._client.connect()
         return self._client
 
     def initialize(self) -> bool:
-        """Create collection if it doesn't exist.
-
-        Returns True if collection was created, False if it already existed.
-
-        Attempts hybrid (dense + sparse). Falls back to dense-only
-        if the server doesn't support sparse vectors.
-        """
         av = _require_actian()
         VectorAIError = av.exceptions.VectorAIError
 
         if self.collection_exists():
             return False
 
-        # Try hybrid first (dense + sparse)
         try:
             self.client.collections.create(
                 COLLECTION_NAME,
@@ -84,11 +72,9 @@ class StorageService:
             self._sparse_supported = True
             logger.info("Created hybrid collection (dense + sparse)")
             return True
-
         except VectorAIError as e:
             logger.warning(f"Hybrid collection failed ({e}), falling back to dense-only")
 
-        # Fallback: dense-only
         try:
             self.client.collections.create(
                 COLLECTION_NAME,
@@ -104,9 +90,7 @@ class StorageService:
             self._sparse_supported = False
             logger.info("Created dense-only collection (sparse not supported)")
             return True
-
         except VectorAIError:
-            # Last resort: single vector space
             self.client.collections.create(
                 COLLECTION_NAME,
                 vectors_config=av.VectorParams(size=TEXT_EMBED_DIM, distance=av.Distance.Cosine),
@@ -117,24 +101,21 @@ class StorageService:
 
     @property
     def sparse_supported(self) -> bool:
-        """Check if the collection supports sparse vectors."""
         if self._sparse_supported is None:
             try:
                 self.client.collections.get_info(COLLECTION_NAME)
-                self._sparse_supported = False  # Safe default
+                self._sparse_supported = False
             except Exception:
                 self._sparse_supported = False
         return self._sparse_supported
 
     def collection_exists(self) -> bool:
-        """Check if the Context8 collection exists."""
         try:
             return self.client.collections.exists(COLLECTION_NAME)
         except Exception:
             return False
 
     def drop_collection(self) -> None:
-        """Delete the collection if it exists."""
         try:
             if self.collection_exists():
                 self.client.collections.delete(COLLECTION_NAME)
@@ -143,7 +124,6 @@ class StorageService:
             logger.warning(f"Failed to drop collection: {e}")
 
     def store_record(self, record: ResolutionRecord, vectors: dict) -> str:
-        """Store a resolution record with its embedding vectors."""
         av = _require_actian()
         VectorAIError = av.exceptions.VectorAIError
 
@@ -182,8 +162,14 @@ class StorageService:
 
         return record.id
 
+    def update_record(self, record: ResolutionRecord, vectors: dict) -> str:
+        try:
+            self.client.points.delete_by_ids(COLLECTION_NAME, [record.id])
+        except Exception as e:
+            logger.debug(f"Pre-update delete had no effect: {e}")
+        return self.store_record(record, vectors)
+
     def get_record(self, record_id: str) -> ResolutionRecord | None:
-        """Retrieve a record by ID."""
         try:
             results = self.client.points.get(
                 COLLECTION_NAME,
@@ -197,33 +183,69 @@ class StorageService:
             return None
 
     def count(self) -> int:
-        """Get total number of records."""
         try:
             return self.client.points.count(COLLECTION_NAME)
         except Exception:
             return 0
 
     def get_collection_info(self) -> dict | None:
-        """Get collection metadata."""
         try:
             info = self.client.collections.get_info(COLLECTION_NAME)
+            named_vectors = self._discover_named_vectors(info)
+            sparse_vectors = self._discover_sparse_vectors(info)
             return {
                 "status": str(getattr(info, "status", "unknown")),
                 "points": getattr(info, "points_count", 0),
-                "vectors": ["problem", "solution", "code_context"],
+                "vectors": named_vectors or ["problem", "solution", "code_context"],
+                "named_vector_count": len(named_vectors),
+                "sparse_vectors": sparse_vectors,
+                "sparse_supported": bool(sparse_vectors),
+                "hybrid_enabled": len(named_vectors) >= 2 and bool(sparse_vectors),
             }
         except Exception:
             return None
 
+    @staticmethod
+    def _discover_named_vectors(info) -> list[str]:
+        candidates = [
+            getattr(info, "vectors", None),
+            getattr(getattr(info, "config", None), "vectors", None),
+            getattr(getattr(info, "params", None), "vectors", None),
+        ]
+        for c in candidates:
+            if isinstance(c, dict):
+                return sorted(c.keys())
+            if hasattr(c, "keys"):
+                try:
+                    return sorted(list(c.keys()))
+                except Exception:
+                    continue
+        return []
+
+    @staticmethod
+    def _discover_sparse_vectors(info) -> list[str]:
+        candidates = [
+            getattr(info, "sparse_vectors", None),
+            getattr(getattr(info, "config", None), "sparse_vectors", None),
+            getattr(getattr(info, "params", None), "sparse_vectors", None),
+        ]
+        for c in candidates:
+            if isinstance(c, dict):
+                return sorted(c.keys())
+            if hasattr(c, "keys"):
+                try:
+                    return sorted(list(c.keys()))
+                except Exception:
+                    continue
+        return []
+
     def delete_record(self, record_id: str) -> None:
-        """Delete a record by ID."""
         try:
             self.client.points.delete_by_ids(COLLECTION_NAME, [record_id])
         except Exception as e:
             logger.warning(f"Failed to delete record {record_id}: {e}")
 
     def close(self) -> None:
-        """Close the client connection."""
         if self._client is not None:
             try:
                 self._client.close()
