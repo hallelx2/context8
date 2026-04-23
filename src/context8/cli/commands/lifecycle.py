@@ -55,8 +55,9 @@ def stop():
 
 @click.command()
 @click.option("--seed", is_flag=True, help="Seed with curated starter data")
+@click.option("--github", is_flag=True, help="Also import from popular GitHub repos")
 @click.option("--force", is_flag=True, help="Drop and recreate collection")
-def init(seed: bool, force: bool):
+def init(seed: bool, github: bool, force: bool):
     """Initialize the Context8 collection in the database."""
     console.print("\n[bold blue]Context8[/] Initializing...\n")
 
@@ -82,12 +83,14 @@ def init(seed: bool, force: bool):
     else:
         console.print(f"[green]✓[/] Collection '{COLLECTION_NAME}' already exists")
 
-    if seed:
+    if seed or github:
         console.print("\n  Seeding with starter data...")
         from ...ingest import seed_database
 
-        count = seed_database(storage=storage)
-        console.print(f"[green]✓[/] Seeded {count} problem-solution records")
+        count = seed_database(storage=storage, include_github=github)
+        console.print(f"[green]✓[/] Seeded {count} records")
+        if github:
+            console.print("  [dim](includes resolved GitHub issues from popular repos)[/]")
 
     total = storage.count()
     console.print(f"\n  Total records: [bold]{total}[/]")

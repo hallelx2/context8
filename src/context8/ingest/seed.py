@@ -252,10 +252,22 @@ def _record_from_seed(data: dict) -> ResolutionRecord:
     return ResolutionRecord(**kwargs)
 
 
+GITHUB_SEED_REPOS: list[tuple[str, str | None, int]] = [
+    # (repo, label_filter, max_issues)
+    ("vercel/next.js", "bug", 40),
+    ("facebook/react", "Type: Bug", 25),
+    ("microsoft/TypeScript", "Bug", 25),
+    ("docker/compose", "kind/bug", 15),
+    ("pallets/flask", "bug", 15),
+    ("tiangolo/fastapi", "bug", 15),
+]
+
+
 def seed_database(
     storage: StorageService | None = None,
     host: str = "localhost",
     port: int = 50051,
+    include_github: bool = False,
 ) -> int:
     own_storage = storage is None
     if own_storage:
@@ -264,10 +276,30 @@ def seed_database(
 
     embeddings = EmbeddingService()
     pipeline = IngestPipeline(storage, embeddings)
+
+    # Phase 1: curated seed records (always)
     records = [_record_from_seed(d) for d in SEED_DATA]
     stats = pipeline.ingest(records, skip_existing=False)
+    total = stats.stored
+
+    # Phase 2: GitHub issues (opt-in)
+    if include_github:
+        from .github import GitHubIssueImporter
+
+        importer = GitHubIssueImporter()
+        for repo, label, max_issues in GITHUB_SEED_REPOS:
+            try:
+                labels = [label] if label else None
+                gh_records = importer.import_repo(repo, labels=labels, max_issues=max_issues)
+                gh_stats = pipeline.ingest(gh_records, skip_existing=True)
+                total += gh_stats.stored
+                logger.info(
+                    f"GitHub seed: {repo} → {gh_stats.stored} stored, {gh_stats.duplicates} dupes"
+                )
+            except Exception as e:
+                logger.warning(f"GitHub seed failed for {repo}: {e}")
 
     if own_storage:
         storage.close()
 
-    return stats.stored
+    return total
