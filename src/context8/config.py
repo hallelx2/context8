@@ -102,7 +102,7 @@ SUPPORTED_AGENTS = {
         "name": "Claude Code",
         "config_path_fn": claude_code_config_path,
         "config_key": "mcpServers",
-        "format": "standard",
+        "format": "claude-plugin",  # Uses plugin system, not settings.json
     },
     "claude-desktop": {
         "name": "Claude Desktop",
