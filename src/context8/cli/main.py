@@ -6,6 +6,7 @@ from .. import __version__
 from .commands import (
     add,
     bench,
+    browse,
     demo,
     doctor,
     export_cmd,
@@ -34,6 +35,7 @@ main.add_command(init)
 main.add_command(add)
 main.add_command(remove)
 main.add_command(stats)
+main.add_command(browse)
 main.add_command(doctor)
 main.add_command(search_cmd)
 main.add_command(bench)

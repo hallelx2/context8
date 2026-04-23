@@ -302,6 +302,91 @@ def search_cmd(query: str, language: str | None, framework: str | None, limit: i
     console.print()
 
 
+@click.command()
+@click.option("--tag", "-t", default=None, help="Filter by tag")
+@click.option("--language", "-l", default=None, help="Filter by language")
+@click.option("--framework", "-f", default=None, help="Filter by framework")
+@click.option("--error-type", "-e", default=None, help="Filter by error type")
+@click.option("--source", "-s", default=None, help="Filter by source (seed, github, session_mine)")
+@click.option("--limit", "-n", default=20, help="Max results")
+def browse(
+    tag: str | None,
+    language: str | None,
+    framework: str | None,
+    error_type: str | None,
+    source: str | None,
+    limit: int,
+):
+    """Browse records by metadata — no search query needed.
+
+    \b
+    Examples:
+        context8 browse --tag docker
+        context8 browse --language python --error-type ImportError
+        context8 browse --source github
+    """
+    filters = []
+    if tag:
+        filters.append(f"tag={tag}")
+    if language:
+        filters.append(f"lang={language}")
+    if framework:
+        filters.append(f"fw={framework}")
+    if error_type:
+        filters.append(f"err={error_type}")
+    if source:
+        filters.append(f"source={source}")
+
+    label = ", ".join(filters) if filters else "all records"
+    console.print(f"\n[bold blue]Context8[/] Browsing: [italic]{label}[/]\n")
+
+    ok, info = check_db_connection()
+    if not ok:
+        console.print(f"[red]✗ Cannot connect:[/] {info}\n")
+        raise SystemExit(1)
+
+    from ...browse import browse as do_browse
+    from ...storage import StorageService
+
+    storage = StorageService()
+    records = do_browse(
+        storage,
+        tag=tag,
+        language=language,
+        framework=framework,
+        error_type=error_type,
+        source=source,
+        limit=limit,
+    )
+
+    if not records:
+        console.print("[yellow]No matching records found.[/]\n")
+        storage.close()
+        return
+
+    table = Table(box=box.ROUNDED, title=f"Records ({len(records)})")
+    table.add_column("#", width=3)
+    table.add_column("Error Type", style="red", max_width=20)
+    table.add_column("Problem", max_width=50)
+    table.add_column("Lang", width=8)
+    table.add_column("Tags", max_width=25)
+    table.add_column("Source", width=10)
+
+    for i, r in enumerate(records, 1):
+        table.add_row(
+            str(i),
+            r.error_type or "-",
+            r.problem_text[:50] + "..." if len(r.problem_text) > 50 else r.problem_text,
+            r.language or "-",
+            ", ".join(r.tags[:3]) if r.tags else "-",
+            r.source or "-",
+        )
+
+    console.print(table)
+    console.print()
+    storage.close()
+
+
 @click.command(name="export")
 @click.option("--output", "-o", default="context8-export.json", help="Output file path")
 def export_cmd(output: str):
