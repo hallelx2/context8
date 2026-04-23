@@ -208,12 +208,7 @@ class SearchEngine:
                 with_payload=True,
             )
         except VectorAIError:
-            results = self.storage.client.points.search(
-                COLLECTION_NAME,
-                vector=query_vec,
-                limit=1,
-                with_payload=True,
-            )
+            return None
 
         if not results:
             return None
@@ -289,17 +284,8 @@ class SearchEngine:
         except VectorAIError as e:
             if strict:
                 logger.warning(f"{vector_name} vector search failed: {e}")
-                try:
-                    return self.storage.client.points.search(
-                        COLLECTION_NAME,
-                        vector=vector,
-                        filter=search_filter,
-                        limit=limit,
-                        with_payload=True,
-                    )
-                except VectorAIError:
-                    return []
-            logger.debug(f"{vector_name} vector search not available: {e}")
+            else:
+                logger.debug(f"{vector_name} vector search not available: {e}")
             return []
 
     def _search_sparse(
