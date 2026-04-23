@@ -56,6 +56,11 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/context8"]
 
+# uv resolves actian-vectorai from this URL when installing from source.
+# This does NOT affect PyPI installs (uv.sources is ignored by pip/PyPI).
+[tool.uv.sources]
+actian-vectorai = { url = "https://github.com/hackmamba-io/actian-vectorAI-db-beta/raw/main/actian_vectorai-0.1.0b2-py3-none-any.whl" }
+
 [tool.ruff]
 target-version = "py310"
 line-length = 100
