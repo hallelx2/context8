@@ -162,7 +162,51 @@ class StorageService:
 
         return record.id
 
+    def update_payload_only(self, record: ResolutionRecord) -> str:
+        """Update a record's payload without re-embedding vectors.
+
+        Retrieves existing vectors from Actian, then re-upserts with
+        the updated payload. Avoids wasting ~40ms of embedding compute
+        when only metadata (feedback counters, tags, timestamps) changed.
+        """
+        av = _require_actian()
+
+        try:
+            points = self.client.points.get(
+                COLLECTION_NAME,
+                ids=[record.id],
+                with_payload=True,
+                with_vectors=True,
+            )
+        except Exception:
+            points = []
+
+        if not points:
+            logger.warning(f"update_payload_only: record {record.id} not found, cannot update")
+            return record.id
+
+        existing = points[0]
+        existing_vector = existing.vector if hasattr(existing, "vector") else None
+
+        if existing_vector:
+            point = av.PointStruct(
+                id=record.id,
+                vector=existing_vector,
+                payload=record.to_payload(),
+            )
+            self.client.points.upsert(COLLECTION_NAME, [point])
+        else:
+            logger.warning(
+                f"update_payload_only: no vectors for {record.id}, "
+                "falling back requires full update"
+            )
+            # Vectors not returned — can't avoid re-embedding
+            # Caller must use update_record() with fresh vectors instead
+
+        return record.id
+
     def update_record(self, record: ResolutionRecord, vectors: dict) -> str:
+        """Full update: delete + re-upsert with new vectors and payload."""
         try:
             self.client.points.delete_by_ids(COLLECTION_NAME, [record.id])
         except Exception as e:

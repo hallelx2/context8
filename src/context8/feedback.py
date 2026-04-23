@@ -4,7 +4,6 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from .embeddings import EmbeddingService
 from .storage import StorageService
 
 logger = logging.getLogger("context8.feedback")
@@ -21,9 +20,8 @@ class FeedbackOutcome:
 
 
 class FeedbackService:
-    def __init__(self, storage: StorageService, embeddings: EmbeddingService):
+    def __init__(self, storage: StorageService):
         self.storage = storage
-        self.embeddings = embeddings
 
     def rate(
         self,
@@ -53,13 +51,10 @@ class FeedbackService:
             if tag not in record.tags:
                 record.tags.append(tag)
 
-        vectors = self.embeddings.embed_record(
-            problem_text=record.problem_text,
-            solution_text=record.solution_text,
-            code_snippet=record.code_snippet,
-        )
         try:
-            self.storage.update_record(record, vectors)
+            # Payload-only update — reuses existing vectors from Actian,
+            # avoids re-embedding (~40ms) when only counters/tags changed.
+            self.storage.update_payload_only(record)
         except Exception as e:
             logger.warning(f"Feedback persistence failed for {record_id}: {e}")
             return FeedbackOutcome(

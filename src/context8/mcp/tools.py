@@ -29,7 +29,7 @@ def get_services() -> tuple[EmbeddingService, StorageService, SearchEngine, Feed
     if _search_engine is None:
         _search_engine = SearchEngine(_storage_service, _embedding_service)
     if _feedback_service is None:
-        _feedback_service = FeedbackService(_storage_service, _embedding_service)
+        _feedback_service = FeedbackService(_storage_service)
 
     return _embedding_service, _storage_service, _search_engine, _feedback_service
 
