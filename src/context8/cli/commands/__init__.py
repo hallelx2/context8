@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from .bench import bench, demo
-from .ingest import import_github
+from .ingest import import_github, mine
 from .integrations import add, remove
 from .lifecycle import init, start, stop
 from .ops import doctor, search_cmd, stats
@@ -19,5 +19,6 @@ __all__ = [
     "bench",
     "demo",
     "import_github",
+    "mine",
     "serve",
 ]

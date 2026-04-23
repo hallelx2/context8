@@ -107,3 +107,63 @@ def import_github(
     console.print(table)
     console.print(f"\n  Total records in DB now: [bold]{storage.count()}[/]\n")
     storage.close()
+
+
+@click.command()
+@click.argument("directory", type=click.Path(exists=True))
+@click.option("--max-files", default=100, show_default=True, help="Max session files to scan")
+def mine(directory: str, max_files: int):
+    """Mine problem-solution pairs from agent session transcripts.
+
+    Parses Claude Code (~/.claude/sessions/) or Cursor conversation
+    files to find error→fix patterns and imports them into Context8.
+
+    \b
+    Examples:
+        context8 mine ~/.claude/sessions/
+        context8 mine ~/.cursor/conversations/
+    """
+    from pathlib import Path
+
+    dir_path = Path(directory)
+    console.print(f"\n[bold blue]Context8[/] Mining sessions from [cyan]{dir_path}[/]\n")
+
+    ok, info = check_db_connection()
+    if not ok:
+        console.print(f"[red]✗ Cannot connect:[/] {info}\n")
+        raise SystemExit(1)
+
+    from ...embeddings import EmbeddingService
+    from ...ingest import IngestPipeline
+    from ...ingest.sessions import mine_directory
+    from ...storage import StorageService
+
+    with console.status("[cyan]Scanning session files..."):
+        records = mine_directory(dir_path, max_files=max_files)
+
+    if not records:
+        console.print("[yellow]No problem-solution pairs found.[/]\n")
+        return
+
+    console.print(f"[green]✓[/] Found [bold]{len(records)}[/] problem-solution pairs")
+
+    storage = StorageService()
+    storage.initialize()
+    embeddings = EmbeddingService()
+    pipeline = IngestPipeline(storage, embeddings)
+
+    with console.status("[cyan]Embedding and storing..."):
+        stats = pipeline.ingest(records, skip_existing=True)
+
+    table = Table(box=box.ROUNDED, title="Session mining results")
+    table.add_column("Metric", style="cyan")
+    table.add_column("Value", style="bold", justify="right")
+    table.add_row("Files scanned", str(max_files))
+    table.add_row("Pairs extracted", str(stats.attempted))
+    table.add_row("Stored (new)", f"[green]{stats.stored}[/]")
+    table.add_row("Duplicates", str(stats.duplicates))
+    table.add_row("Failed", f"[red]{stats.failed}[/]" if stats.failed else "0")
+
+    console.print(table)
+    console.print(f"\n  Total records in DB now: [bold]{storage.count()}[/]\n")
+    storage.close()

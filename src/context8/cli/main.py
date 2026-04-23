@@ -10,6 +10,7 @@ from .commands import (
     doctor,
     import_github,
     init,
+    mine,
     remove,
     search_cmd,
     serve,
@@ -36,6 +37,7 @@ main.add_command(search_cmd)
 main.add_command(bench)
 main.add_command(demo)
 main.add_command(import_github)
+main.add_command(mine)
 main.add_command(serve)
 
 
