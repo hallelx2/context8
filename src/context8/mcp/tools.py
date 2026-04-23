@@ -305,8 +305,13 @@ def _handle_log(args: dict) -> list[TextContent]:
         agent="mcp-agent",
     )
 
-    existing = engine.find_duplicate(record.problem_text)
-    if existing:
+    # Check for duplicate or variant
+    status, existing = engine.find_duplicate_or_variant(
+        record.problem_text,
+        record.solution_text,
+    )
+
+    if status == "duplicate":
         return [
             TextContent(
                 type="text",
@@ -317,6 +322,10 @@ def _handle_log(args: dict) -> list[TextContent]:
             )
         ]
 
+    if status == "variant" and existing:
+        # Same problem, different solution — store as variant
+        record.tags.append(f"variant-of:{existing.record.id}")
+
     vectors = embeddings.embed_record(
         problem_text=record.problem_text,
         solution_text=record.solution_text,
@@ -324,11 +333,19 @@ def _handle_log(args: dict) -> list[TextContent]:
     )
     record_id = storage.store_record(record, vectors)
 
+    variant_note = ""
+    if status == "variant":
+        variant_note = (
+            f" This is an alternative solution to an existing record "
+            f"({existing.record.id}) — both are now searchable."
+        )
+
     return [
         TextContent(
             type="text",
             text=(
-                f"Solution logged to Context8. Record ID: {record_id}. "
+                f"Solution logged to Context8. Record ID: {record_id}."
+                f"{variant_note} "
                 f"Future agents encountering similar problems will find this."
             ),
         )

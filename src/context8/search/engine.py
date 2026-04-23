@@ -227,6 +227,45 @@ class SearchEngine:
             match_type="dense",
         )
 
+    def find_duplicate_or_variant(
+        self,
+        problem_text: str,
+        solution_text: str,
+        exact_threshold: float = DEDUP_THRESHOLD,
+        variant_threshold: float = 0.85,
+        solution_diff_threshold: float = 0.7,
+    ) -> tuple[str, SearchResult | None]:
+        """Check if a problem is a duplicate or a solution variant.
+
+        Returns:
+            ("duplicate", result) — same problem AND same solution
+            ("variant", result)   — same problem, DIFFERENT solution
+            ("new", None)         — genuinely new problem
+        """
+        existing = self.find_duplicate(problem_text, threshold=variant_threshold)
+        if existing is None:
+            return "new", None
+
+        if existing.score >= exact_threshold:
+            # Problem matches closely — check if solution is also similar
+            existing_sol_vec = self.embeddings.embed_text(existing.record.solution_text)
+            new_sol_vec = self.embeddings.embed_text(solution_text)
+
+            # Cosine similarity between solutions
+            import math
+
+            dot = sum(a * b for a, b in zip(existing_sol_vec, new_sol_vec))
+            norm_a = math.sqrt(sum(a * a for a in existing_sol_vec))
+            norm_b = math.sqrt(sum(b * b for b in new_sol_vec))
+            sol_sim = dot / (norm_a * norm_b) if norm_a and norm_b else 0.0
+
+            if sol_sim >= solution_diff_threshold:
+                return "duplicate", existing  # Same problem, same solution
+            else:
+                return "variant", existing  # Same problem, different solution
+
+        return "new", None
+
     def _search_named(
         self,
         vector_name: str,
