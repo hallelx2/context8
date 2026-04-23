@@ -120,8 +120,31 @@ class EmbeddingService:
         }
 
     def warmup(self) -> None:
+        """Load models and run a dummy embedding to warm caches."""
         logger.info("Warming up embedding models...")
         self.embed_text("warmup")
         if self._use_code_model:
             self.embed_code("def warmup(): pass")
         logger.info("Models warm")
+
+    @staticmethod
+    def ensure_models_downloaded(text_model: str = "", code_model: str = "") -> None:
+        """Pre-download embedding models if not already cached.
+
+        Called during `context8 init` so the MCP server starts instantly.
+        sentence-transformers caches models in ~/.cache/huggingface/hub/
+        """
+        from ..config import CODE_MODEL, TEXT_MODEL
+
+        text_model = text_model or TEXT_MODEL
+        code_model = code_model or CODE_MODEL
+
+        from sentence_transformers import SentenceTransformer
+
+        logger.info(f"Ensuring text model is downloaded: {text_model}")
+        SentenceTransformer(text_model)
+        logger.info("Text model ready")
+
+        # Code model is opt-in — only pre-download if explicitly requested
+        if code_model and code_model != text_model:
+            logger.info(f"Code model available: {code_model} (downloaded on first use)")

@@ -24,6 +24,18 @@ def get_services() -> tuple[EmbeddingService, StorageService, SearchEngine, Feed
     if _embedding_service is None:
         _embedding_service = EmbeddingService()
     if _storage_service is None:
+        # Auto-start Docker if not running
+        try:
+            from ..docker import ensure_running
+
+            ok, msg = ensure_running(timeout_secs=30)
+            if ok:
+                import logging
+
+                logging.getLogger("context8.mcp").info(f"DB: {msg}")
+        except Exception:
+            pass  # Docker might already be running, or not available
+
         _storage_service = StorageService()
         _storage_service.initialize()
     if _search_engine is None:

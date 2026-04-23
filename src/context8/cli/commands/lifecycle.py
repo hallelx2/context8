@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import time
-
 import click
 
 from ...config import COLLECTION_NAME, DB_URL
-from ..ui import check_db_connection, console, run_docker
+from ..ui import check_db_connection, console
 
 
 @click.command()
@@ -14,43 +12,42 @@ def start(detach: bool):
     """Start the Actian VectorAI DB container."""
     console.print("\n[bold blue]Context8[/] Starting database...\n")
 
-    args = ["up"]
-    if detach:
-        args.append("-d")
+    from ...docker import ensure_running, is_container_running
 
-    result = run_docker(args)
-    if result.returncode != 0:
-        console.print(f"[red]Failed to start:[/]\n{result.stderr}")
-        raise SystemExit(1)
-
-    console.print("[green]✓[/] Container started")
-    console.print("  Waiting for database to be ready...", end="")
-
-    for _ in range(30):
+    if is_container_running():
+        console.print("[green]✓[/] Container already running")
         ok, info = check_db_connection()
         if ok:
-            console.print(" [green]ready![/]")
             console.print(f"  Connected to {info}")
             console.print(f"  gRPC endpoint: [cyan]{DB_URL}[/]\n")
-            return
-        time.sleep(1)
-        console.print(".", end="")
+        return
 
-    console.print("\n[yellow]⚠ Database not ready after 30s — it may still be starting[/]")
-    console.print("  Try: [cyan]context8 doctor[/]\n")
+    console.print("  Starting container...", end="")
+    ok, msg = ensure_running(timeout_secs=30)
+
+    if ok:
+        console.print(" [green]ready![/]")
+        console.print(f"  {msg}")
+        console.print(f"  gRPC endpoint: [cyan]{DB_URL}[/]\n")
+    else:
+        console.print(f"\n[red]✗ Failed:[/] {msg}")
+        console.print("  Is Docker Desktop running?\n")
+        raise SystemExit(1)
 
 
 @click.command()
 def stop():
     """Stop the Actian VectorAI DB container."""
     console.print("\n[bold blue]Context8[/] Stopping database...\n")
-    result = run_docker(["down"])
 
-    if result.returncode != 0:
-        console.print(f"[red]Failed to stop:[/]\n{result.stderr}")
+    from ...docker import stop_container
+
+    ok, msg = stop_container()
+    if ok:
+        console.print(f"[green]✓[/] Container {msg}\n")
+    else:
+        console.print(f"[red]✗ Failed:[/] {msg}\n")
         raise SystemExit(1)
-
-    console.print("[green]✓[/] Container stopped\n")
 
 
 @click.command()
@@ -58,41 +55,70 @@ def stop():
 @click.option("--github", is_flag=True, help="Also import from popular GitHub repos")
 @click.option("--force", is_flag=True, help="Drop and recreate collection")
 def init(seed: bool, github: bool, force: bool):
-    """Initialize the Context8 collection in the database."""
+    """Initialize Context8 — start DB, create collection, download models, seed.
+
+    This is the one-stop setup command. It:
+    1. Starts Docker container if not running
+    2. Creates the Actian VectorAI DB collection
+    3. Downloads the embedding model (~80MB, cached after first run)
+    4. Seeds with starter data (if --seed)
+    5. Imports from GitHub repos (if --github)
+    """
     console.print("\n[bold blue]Context8[/] Initializing...\n")
 
-    ok, info = check_db_connection()
-    if not ok:
-        console.print(f"[red]✗ Cannot connect to database:[/] {info}")
-        console.print("  Run [cyan]context8 start[/] first\n")
-        raise SystemExit(1)
+    # Step 1: Ensure Docker is running
+    console.print("  [dim]1/4[/] Docker container...", end="")
+    try:
+        from ...docker import ensure_running
 
-    console.print(f"[green]✓[/] Connected to {info}")
+        ok, msg = ensure_running(timeout_secs=30)
+        if ok:
+            console.print(f" [green]✓[/] {msg}")
+        else:
+            console.print(f" [red]✗[/] {msg}")
+            console.print("  Is Docker Desktop running?\n")
+            raise SystemExit(1)
+    except ImportError:
+        console.print(" [yellow]skipped[/] (check Docker manually)")
 
+    # Step 2: Create collection
+    console.print("  [dim]2/4[/] Collection...", end="")
     from ...storage import StorageService
 
     storage = StorageService()
 
     if force:
-        console.print("  Dropping existing collection...")
         storage.drop_collection()
 
     created = storage.initialize()
     if created:
-        console.print(f"[green]✓[/] Collection '{COLLECTION_NAME}' created")
+        console.print(f" [green]✓[/] '{COLLECTION_NAME}' created")
     else:
-        console.print(f"[green]✓[/] Collection '{COLLECTION_NAME}' already exists")
+        console.print(f" [green]✓[/] '{COLLECTION_NAME}' exists")
 
+    # Step 3: Download embedding model
+    console.print("  [dim]3/4[/] Embedding model...", end="")
+    try:
+        from ...embeddings import EmbeddingService
+
+        EmbeddingService.ensure_models_downloaded()
+        console.print(" [green]✓[/] ready")
+    except Exception as e:
+        console.print(f" [yellow]⚠[/] {e}")
+
+    # Step 4: Seed
     if seed or github:
-        console.print("\n  Seeding with starter data...")
+        console.print("  [dim]4/4[/] Seeding...", end="")
         from ...ingest import seed_database
 
         count = seed_database(storage=storage, include_github=github)
-        console.print(f"[green]✓[/] Seeded {count} records")
+        console.print(f" [green]✓[/] {count} records")
         if github:
-            console.print("  [dim](includes resolved GitHub issues from popular repos)[/]")
+            console.print("        [dim](includes GitHub issues)[/]")
+    else:
+        console.print("  [dim]4/4[/] Seed: skipped (use --seed)")
 
     total = storage.count()
     console.print(f"\n  Total records: [bold]{total}[/]")
     storage.close()
-    console.print("[green]✓[/] Ready\n")
+    console.print("[green]✓[/] Context8 is ready\n")

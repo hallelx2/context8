@@ -68,19 +68,14 @@ def doctor():
         checks.append(("Docker", False, "not found — install Docker Desktop"))
 
     try:
-        result = subprocess.run(
-            ["docker", "ps", "--filter", "name=context8_db", "--format", "{{.Status}}"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        container_status = result.stdout.strip()
-        container_ok = bool(container_status) and "Up" in container_status
+        from ...docker import is_container_running
+
+        container_ok = is_container_running()
         checks.append(
             (
                 "Container (context8_db)",
                 container_ok,
-                container_status if container_status else "not running — run: context8 start",
+                "running" if container_ok else "not running — run: context8 start",
             )
         )
     except Exception:

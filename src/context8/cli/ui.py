@@ -1,31 +1,10 @@
 from __future__ import annotations
 
-import subprocess
-from pathlib import Path
-
 from rich.console import Console
 
-from ..config import DB_URL, project_root
+from ..config import DB_URL
 
 console = Console()
-
-
-def docker_compose_cmd() -> list[str]:
-    try:
-        subprocess.run(
-            ["docker", "compose", "version"],
-            capture_output=True,
-            check=True,
-        )
-        return ["docker", "compose"]
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return ["docker-compose"]
-
-
-def run_docker(args: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess:
-    cmd = docker_compose_cmd() + args
-    root = cwd or project_root()
-    return subprocess.run(cmd, cwd=root, capture_output=True, text=True)
 
 
 def check_actian_sdk() -> tuple[bool, str]:
