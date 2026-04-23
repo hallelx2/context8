@@ -300,3 +300,55 @@ def search_cmd(query: str, language: str | None, framework: str | None, limit: i
 
     storage.close()
     console.print()
+
+
+@click.command(name="export")
+@click.option("--output", "-o", default="context8-export.json", help="Output file path")
+def export_cmd(output: str):
+    """Export the Context8 knowledge base to a JSON file."""
+    from pathlib import Path
+
+    console.print(f"\n[bold blue]Context8[/] Exporting to [cyan]{output}[/]\n")
+
+    ok, info = check_db_connection()
+    if not ok:
+        console.print(f"[red]✗ Cannot connect:[/] {info}\n")
+        raise SystemExit(1)
+
+    from ...export import export_json
+    from ...storage import StorageService
+
+    storage = StorageService()
+    count = export_json(storage, Path(output))
+    storage.close()
+
+    console.print(f"[green]✓[/] Exported [bold]{count}[/] records to {output}\n")
+
+
+@click.command(name="import")
+@click.argument("file", type=click.Path(exists=True))
+def import_cmd(file: str):
+    """Import records from a Context8 JSON export file."""
+    from pathlib import Path
+
+    console.print(f"\n[bold blue]Context8[/] Importing from [cyan]{file}[/]\n")
+
+    ok, info = check_db_connection()
+    if not ok:
+        console.print(f"[red]✗ Cannot connect:[/] {info}\n")
+        raise SystemExit(1)
+
+    from ...embeddings import EmbeddingService
+    from ...export import import_json
+    from ...storage import StorageService
+
+    storage = StorageService()
+    storage.initialize()
+    embeddings = EmbeddingService()
+
+    count = import_json(storage, embeddings, Path(file))
+    total = storage.count()
+    storage.close()
+
+    console.print(f"[green]✓[/] Imported [bold]{count}[/] new records")
+    console.print(f"  Total records now: [bold]{total}[/]\n")

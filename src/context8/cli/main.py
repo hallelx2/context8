@@ -8,6 +8,8 @@ from .commands import (
     bench,
     demo,
     doctor,
+    export_cmd,
+    import_cmd,
     import_github,
     init,
     mine,
@@ -36,6 +38,8 @@ main.add_command(doctor)
 main.add_command(search_cmd)
 main.add_command(bench)
 main.add_command(demo)
+main.add_command(export_cmd)
+main.add_command(import_cmd)
 main.add_command(import_github)
 main.add_command(mine)
 main.add_command(serve)
