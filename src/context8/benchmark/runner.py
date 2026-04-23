@@ -156,3 +156,43 @@ def run_benchmark(
         storage.close()
 
     return results
+
+
+def results_to_markdown(results: list[ConfigResult]) -> str:
+    """Render benchmark results as a markdown table for RESULTS.md."""
+    lines = [
+        "## Benchmark Results",
+        "",
+        f"> {results[0].queries_run} ground-truth queries evaluated",
+        "",
+        "| Configuration | Recall@1 | Recall@3 | Recall@5 | MRR | p50 Latency |",
+        "|---|---|---|---|---|---|",
+    ]
+
+    baseline_r5 = results[0].recall_at_5 if results else 0.0
+
+    for r in results:
+        delta = r.recall_at_5 - baseline_r5
+        delta_str = f" (+{delta:.0%})" if delta > 0 else ""
+
+        lines.append(
+            f"| {r.config.name} "
+            f"| {r.recall_at_1:.0%} "
+            f"| {r.recall_at_3:.0%} "
+            f"| {r.recall_at_5:.0%}{delta_str} "
+            f"| {r.mrr:.3f} "
+            f"| {r.median_latency_ms:.0f}ms |"
+        )
+
+    lines.append("")
+
+    # Misses section
+    final = results[-1]
+    if final.misses:
+        lines.append("### Misses (full pipeline)")
+        lines.append("")
+        for m in final.misses:
+            lines.append(f"- `{m.expected_slug}`: {m.query}")
+        lines.append("")
+
+    return "\n".join(lines)

@@ -14,7 +14,13 @@ from ..ui import check_db_connection, console
     is_flag=True,
     help="Print queries that didn't return the expected record in the top 5",
 )
-def bench(show_misses: bool):
+@click.option(
+    "--output",
+    "-o",
+    default=None,
+    help="Write results as markdown to a file (e.g. RESULTS.md)",
+)
+def bench(show_misses: bool, output: str | None):
     """Run the ground-truth retrieval benchmark and print the comparison table."""
     console.print("\n[bold blue]Context8[/] Retrieval Benchmark\n")
 
@@ -93,6 +99,15 @@ def bench(show_misses: bool):
         for m in final.misses:
             console.print(f"  [dim]→[/] [italic]{m.query}[/] (expected: {m.expected_slug})")
         console.print()
+
+    if output:
+        from pathlib import Path
+
+        from ...benchmark.runner import results_to_markdown
+
+        md = results_to_markdown(results)
+        Path(output).write_text(md, encoding="utf-8")
+        console.print(f"  [green]✓[/] Results written to [cyan]{output}[/]\n")
 
     storage.close()
 
