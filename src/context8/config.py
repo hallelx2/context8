@@ -11,7 +11,10 @@ DB_URL = f"{DB_HOST}:{DB_PORT}"
 COLLECTION_NAME = "context8_store"
 
 TEXT_EMBED_DIM = 384
-CODE_EMBED_DIM = 768
+# CODE_EMBED_DIM matches the ACTIVE code model. Default is MiniLM (384d)
+# since use_code_model=False reuses the text model. Set to 768 only if
+# CONTEXT8_USE_CODE_MODEL=1 and using CodeBERT.
+CODE_EMBED_DIM = int(os.environ.get("CONTEXT8_CODE_EMBED_DIM", "384"))
 SPARSE_VOCAB_SIZE = 30000
 
 TEXT_MODEL = os.environ.get(

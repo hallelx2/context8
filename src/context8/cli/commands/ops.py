@@ -18,7 +18,7 @@ def stats():
 
     ok, info = check_db_connection()
     if not ok:
-        console.print(f"[red]✗ Cannot connect:[/] {info}")
+        console.print(f"[red]X Cannot connect:[/] {info}")
         console.print("  Run [cyan]context8 start[/] first\n")
         raise SystemExit(1)
 
@@ -30,7 +30,7 @@ def stats():
         total = storage.count()
         collection_info = storage.get_collection_info()
     except Exception as e:
-        console.print(f"[red]✗ Error:[/] {e}")
+        console.print(f"[red]X Error:[/] {e}")
         console.print("  Run [cyan]context8 init[/] first\n")
         raise SystemExit(1)
 
@@ -193,7 +193,7 @@ def doctor():
     table.add_column("Details")
 
     for name, ok, detail in checks:
-        status = "[green]✓[/]" if ok else "[red]✗[/]"
+        status = "[green]OK[/]" if ok else "[red]X[/]"
         table.add_row(name, status, detail)
 
     console.print(table)
@@ -219,7 +219,7 @@ def search_cmd(query: str, language: str | None, framework: str | None, limit: i
 
     ok, info = check_db_connection()
     if not ok:
-        console.print(f"[red]✗ Cannot connect:[/] {info}\n")
+        console.print(f"[red]X Cannot connect:[/] {info}\n")
         raise SystemExit(1)
 
     from ...embeddings import EmbeddingService
@@ -337,7 +337,7 @@ def browse(
 
     ok, info = check_db_connection()
     if not ok:
-        console.print(f"[red]✗ Cannot connect:[/] {info}\n")
+        console.print(f"[red]X Cannot connect:[/] {info}\n")
         raise SystemExit(1)
 
     from ...browse import browse as do_browse
@@ -392,7 +392,7 @@ def export_cmd(output: str):
 
     ok, info = check_db_connection()
     if not ok:
-        console.print(f"[red]✗ Cannot connect:[/] {info}\n")
+        console.print(f"[red]X Cannot connect:[/] {info}\n")
         raise SystemExit(1)
 
     from ...export import export_json
@@ -402,7 +402,7 @@ def export_cmd(output: str):
     count = export_json(storage, Path(output))
     storage.close()
 
-    console.print(f"[green]✓[/] Exported [bold]{count}[/] records to {output}\n")
+    console.print(f"[green]OK[/] Exported [bold]{count}[/] records to {output}\n")
 
 
 @click.command(name="import")
@@ -415,7 +415,7 @@ def import_cmd(file: str):
 
     ok, info = check_db_connection()
     if not ok:
-        console.print(f"[red]✗ Cannot connect:[/] {info}\n")
+        console.print(f"[red]X Cannot connect:[/] {info}\n")
         raise SystemExit(1)
 
     from ...embeddings import EmbeddingService
@@ -430,5 +430,5 @@ def import_cmd(file: str):
     total = storage.count()
     storage.close()
 
-    console.print(f"[green]✓[/] Imported [bold]{count}[/] new records")
+    console.print(f"[green]OK[/] Imported [bold]{count}[/] new records")
     console.print(f"  Total records now: [bold]{total}[/]\n")

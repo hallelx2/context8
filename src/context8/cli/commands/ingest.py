@@ -51,7 +51,7 @@ def import_github(
 
     ok, info = check_db_connection()
     if not ok:
-        console.print(f"[red]✗ Cannot connect:[/] {info}\n")
+        console.print(f"[red]X Cannot connect:[/] {info}\n")
         raise SystemExit(1)
 
     from ...embeddings import EmbeddingService
@@ -73,15 +73,15 @@ def import_github(
                 state=state,
             )
         except Exception as e:
-            console.print(f"[red]✗ Fetch failed:[/] {e}\n")
+            console.print(f"[red]X Fetch failed:[/] {e}\n")
             storage.close()
             raise SystemExit(1) from e
 
-    console.print(f"[green]✓[/] Fetched [bold]{len(fetched.issues)}[/] issue(s)")
+    console.print(f"[green]OK[/] Fetched [bold]{len(fetched.issues)}[/] issue(s)")
 
     records = importer.to_records(repo, fetched, require_resolution=require_resolution)
     console.print(
-        f"[green]✓[/] Extracted [bold]{len(records)}[/] resolution record(s)"
+        f"[green]OK[/] Extracted [bold]{len(records)}[/] resolution record(s)"
         f" (skipped {len(fetched.issues) - len(records)} without a fix)"
     )
 
@@ -130,7 +130,7 @@ def mine(directory: str, max_files: int):
 
     ok, info = check_db_connection()
     if not ok:
-        console.print(f"[red]✗ Cannot connect:[/] {info}\n")
+        console.print(f"[red]X Cannot connect:[/] {info}\n")
         raise SystemExit(1)
 
     from ...embeddings import EmbeddingService
@@ -145,7 +145,7 @@ def mine(directory: str, max_files: int):
         console.print("[yellow]No problem-solution pairs found.[/]\n")
         return
 
-    console.print(f"[green]✓[/] Found [bold]{len(records)}[/] problem-solution pairs")
+    console.print(f"[green]OK[/] Found [bold]{len(records)}[/] problem-solution pairs")
 
     storage = StorageService()
     storage.initialize()

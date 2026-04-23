@@ -34,7 +34,7 @@ def add(agent: str):
     ok, message = add_to_agent(canonical)
 
     if ok:
-        console.print(f"[green]✓[/] {message}")
+        console.print(f"[green]OK[/] {message}")
         agent_name = SUPPORTED_AGENTS[canonical]["name"]
         console.print(f"\n  [dim]Restart {agent_name} to pick up the new MCP server.[/]")
         console.print("  [dim]The agent will now have access to:[/]")
@@ -44,7 +44,7 @@ def add(agent: str):
         console.print("    • [cyan]context8_search_solutions[/]  — Find fixes by approach")
         console.print("    • [cyan]context8_stats[/]             — Knowledge base stats")
     else:
-        console.print(f"[red]✗[/] {message}")
+        console.print(f"[red]X[/] {message}")
         raise SystemExit(1)
 
     console.print()
@@ -64,9 +64,9 @@ def remove(agent: str):
     ok, message = remove_from_agent(canonical)
 
     if ok:
-        console.print(f"[green]✓[/] {message}")
+        console.print(f"[green]OK[/] {message}")
     else:
-        console.print(f"[red]✗[/] {message}")
+        console.print(f"[red]X[/] {message}")
         raise SystemExit(1)
 
     console.print()

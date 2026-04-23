@@ -37,7 +37,7 @@ def check_db_connection() -> tuple[bool, str]:
 def require_db() -> str:
     ok, info = check_db_connection()
     if not ok:
-        console.print(f"[red]✗ Cannot connect to database:[/] {info}")
+        console.print(f"[red]X Cannot connect to database:[/] {info}")
         console.print("  Run [cyan]context8 start[/] first\n")
         raise SystemExit(1)
     return info

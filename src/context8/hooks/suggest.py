@@ -59,7 +59,7 @@ def main() -> None:
             return
 
         # Print suggestion to stdout for the agent to see
-        print("\n💡 Context8 found similar problems that were solved before:\n")
+        print("\n>> Context8 found similar problems that were solved before:\n")
         for i, r in enumerate(results, 1):
             rec = r.record
             print(f"  [{i}] {rec.problem_text[:120]}")

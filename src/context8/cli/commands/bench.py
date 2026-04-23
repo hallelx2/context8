@@ -26,7 +26,7 @@ def bench(show_misses: bool, output: str | None):
 
     ok, info = check_db_connection()
     if not ok:
-        console.print(f"[red]✗ Cannot connect:[/] {info}\n")
+        console.print(f"[red]X Cannot connect:[/] {info}\n")
         raise SystemExit(1)
 
     from ...benchmark import GROUND_TRUTH, run_benchmark
@@ -35,7 +35,7 @@ def bench(show_misses: bool, output: str | None):
     storage = StorageService()
     total = storage.count()
     if total == 0:
-        console.print("[red]✗ Empty collection.[/] Run [cyan]context8 init --seed[/] first.\n")
+        console.print("[red]X Empty collection.[/] Run [cyan]context8 init --seed[/] first.\n")
         raise SystemExit(1)
 
     console.print(f"  Records in DB:    [bold]{total}[/]")
@@ -107,7 +107,7 @@ def bench(show_misses: bool, output: str | None):
 
         md = results_to_markdown(results)
         Path(output).write_text(md, encoding="utf-8")
-        console.print(f"  [green]✓[/] Results written to [cyan]{output}[/]\n")
+        console.print(f"  [green]OK[/] Results written to [cyan]{output}[/]\n")
 
     storage.close()
 
@@ -119,7 +119,7 @@ def demo():
 
     ok, info = check_db_connection()
     if not ok:
-        console.print(f"[red]✗ Cannot connect:[/] {info}\n")
+        console.print(f"[red]X Cannot connect:[/] {info}\n")
         raise SystemExit(1)
 
     from ...embeddings import EmbeddingService
@@ -128,7 +128,7 @@ def demo():
 
     storage = StorageService()
     if storage.count() == 0:
-        console.print("[red]✗ Empty collection.[/] Run [cyan]context8 init --seed[/] first.\n")
+        console.print("[red]X Empty collection.[/] Run [cyan]context8 init --seed[/] first.\n")
         raise SystemExit(1)
 
     embeddings = EmbeddingService()

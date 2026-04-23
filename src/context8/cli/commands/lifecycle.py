@@ -15,7 +15,7 @@ def start(detach: bool):
     from ...docker import ensure_running, is_container_running
 
     if is_container_running():
-        console.print("[green]✓[/] Container already running")
+        console.print("[green]OK[/] Container already running")
         ok, info = check_db_connection()
         if ok:
             console.print(f"  Connected to {info}")
@@ -30,7 +30,7 @@ def start(detach: bool):
         console.print(f"  {msg}")
         console.print(f"  gRPC endpoint: [cyan]{DB_URL}[/]\n")
     else:
-        console.print(f"\n[red]✗ Failed:[/] {msg}")
+        console.print(f"\n[red]X Failed:[/] {msg}")
         console.print("  Is Docker Desktop running?\n")
         raise SystemExit(1)
 
@@ -44,9 +44,9 @@ def stop():
 
     ok, msg = stop_container()
     if ok:
-        console.print(f"[green]✓[/] Container {msg}\n")
+        console.print(f"[green]OK[/] Container {msg}\n")
     else:
-        console.print(f"[red]✗ Failed:[/] {msg}\n")
+        console.print(f"[red]X Failed:[/] {msg}\n")
         raise SystemExit(1)
 
 
@@ -73,9 +73,9 @@ def init(seed: bool, github: bool, force: bool):
 
         ok, msg = ensure_running(timeout_secs=30)
         if ok:
-            console.print(f" [green]✓[/] {msg}")
+            console.print(f" [green]OK[/] {msg}")
         else:
-            console.print(f" [red]✗[/] {msg}")
+            console.print(f" [red]X[/] {msg}")
             console.print("  Is Docker Desktop running?\n")
             raise SystemExit(1)
     except ImportError:
@@ -92,9 +92,9 @@ def init(seed: bool, github: bool, force: bool):
 
     created = storage.initialize()
     if created:
-        console.print(f" [green]✓[/] '{COLLECTION_NAME}' created")
+        console.print(f" [green]OK[/] '{COLLECTION_NAME}' created")
     else:
-        console.print(f" [green]✓[/] '{COLLECTION_NAME}' exists")
+        console.print(f" [green]OK[/] '{COLLECTION_NAME}' exists")
 
     # Step 3: Download embedding model
     console.print("  [dim]3/4[/] Embedding model...", end="")
@@ -102,9 +102,9 @@ def init(seed: bool, github: bool, force: bool):
         from ...embeddings import EmbeddingService
 
         EmbeddingService.ensure_models_downloaded()
-        console.print(" [green]✓[/] ready")
+        console.print(" [green]OK[/] ready")
     except Exception as e:
-        console.print(f" [yellow]⚠[/] {e}")
+        console.print(f" [yellow]![/] {e}")
 
     # Step 4: Seed
     if seed or github:
@@ -112,7 +112,7 @@ def init(seed: bool, github: bool, force: bool):
         from ...ingest import seed_database
 
         count = seed_database(storage=storage, include_github=github)
-        console.print(f" [green]✓[/] {count} records")
+        console.print(f" [green]OK[/] {count} records")
         if github:
             console.print("        [dim](includes GitHub issues)[/]")
     else:
@@ -121,4 +121,4 @@ def init(seed: bool, github: bool, force: bool):
     total = storage.count()
     console.print(f"\n  Total records: [bold]{total}[/]")
     storage.close()
-    console.print("[green]✓[/] Context8 is ready\n")
+    console.print("[green]OK[/] Context8 is ready\n")
