@@ -25,7 +25,6 @@ SEED_DATA: list[dict] = [
         "error_type": "ModuleNotFoundError",
         "language": "python",
         "tags": ["virtual-env", "opencv", "import"],
-        "confidence": 0.95,
     },
     {
         "slug": "py-pep668",
@@ -34,7 +33,6 @@ SEED_DATA: list[dict] = [
         "error_type": "ExternallyManagedEnvironment",
         "language": "python",
         "tags": ["pip", "pep668", "ubuntu", "venv"],
-        "confidence": 0.98,
     },
     {
         "slug": "py-annotated-38",
@@ -43,7 +41,6 @@ SEED_DATA: list[dict] = [
         "error_type": "ImportError",
         "language": "python",
         "tags": ["typing", "backport", "python-version"],
-        "confidence": 0.97,
     },
     {
         "slug": "py-asyncio-jupyter",
@@ -53,7 +50,6 @@ SEED_DATA: list[dict] = [
         "language": "python",
         "framework": "jupyter",
         "tags": ["asyncio", "jupyter", "event-loop"],
-        "confidence": 0.96,
     },
     {
         "slug": "py-torch-cuda-oom",
@@ -63,7 +59,6 @@ SEED_DATA: list[dict] = [
         "language": "python",
         "framework": "pytorch",
         "tags": ["cuda", "oom", "fine-tuning", "gpu"],
-        "confidence": 0.93,
     },
     {
         "slug": "npm-eresolve-peer",
@@ -72,7 +67,6 @@ SEED_DATA: list[dict] = [
         "error_type": "ERESOLVE",
         "language": "javascript",
         "tags": ["npm", "peer-deps", "dependency-conflict"],
-        "confidence": 0.94,
     },
     {
         "slug": "node-esm-cjs",
@@ -81,7 +75,6 @@ SEED_DATA: list[dict] = [
         "error_type": "ERR_REQUIRE_ESM",
         "language": "javascript",
         "tags": ["esm", "commonjs", "import", "require"],
-        "confidence": 0.93,
     },
     {
         "slug": "node-heap-oom",
@@ -90,7 +83,6 @@ SEED_DATA: list[dict] = [
         "error_type": "HeapOutOfMemory",
         "language": "javascript",
         "tags": ["heap", "memory", "build", "node-options"],
-        "confidence": 0.96,
     },
     {
         "slug": "next-hydration",
@@ -100,7 +92,6 @@ SEED_DATA: list[dict] = [
         "language": "typescript",
         "framework": "nextjs",
         "tags": ["hydration", "ssr", "nextjs"],
-        "confidence": 0.92,
     },
     {
         "slug": "react-setstate-render",
@@ -110,7 +101,6 @@ SEED_DATA: list[dict] = [
         "language": "typescript",
         "framework": "react",
         "tags": ["setState", "render", "useEffect"],
-        "confidence": 0.95,
     },
     {
         "slug": "next-api-streaming",
@@ -120,7 +110,6 @@ SEED_DATA: list[dict] = [
         "language": "typescript",
         "framework": "nextjs",
         "tags": ["api-route", "streaming", "app-router"],
-        "confidence": 0.91,
     },
     {
         "slug": "docker-volume-empty",
@@ -130,7 +119,6 @@ SEED_DATA: list[dict] = [
         "language": "",
         "framework": "docker",
         "tags": ["volume", "bind-mount", "wsl2", "file-sharing"],
-        "confidence": 0.91,
     },
     {
         "slug": "docker-port-conflict",
@@ -139,7 +127,6 @@ SEED_DATA: list[dict] = [
         "error_type": "PortConflict",
         "framework": "docker",
         "tags": ["port-conflict", "postgresql", "docker-compose"],
-        "confidence": 0.97,
     },
     {
         "slug": "ts-never-array",
@@ -148,7 +135,6 @@ SEED_DATA: list[dict] = [
         "error_type": "TS2322",
         "language": "typescript",
         "tags": ["type-narrowing", "never", "array-type"],
-        "confidence": 0.93,
     },
     {
         "slug": "ts-path-aliases",
@@ -157,7 +143,6 @@ SEED_DATA: list[dict] = [
         "error_type": "TS2307",
         "language": "typescript",
         "tags": ["path-aliases", "tsconfig", "module-resolution"],
-        "confidence": 0.96,
     },
     {
         "slug": "db-pool-serverless",
@@ -167,7 +152,6 @@ SEED_DATA: list[dict] = [
         "language": "typescript",
         "framework": "prisma",
         "tags": ["connection-pool", "serverless", "postgresql", "pgbouncer"],
-        "confidence": 0.94,
     },
     {
         "slug": "git-lockfile-conflict",
@@ -175,7 +159,6 @@ SEED_DATA: list[dict] = [
         "solution_text": "Never manually resolve lockfile conflicts. Fix: 1) Accept either version: git checkout --theirs package-lock.json, 2) Delete lockfile: rm package-lock.json, 3) Regenerate: npm install, 4) Commit the fresh lockfile.",
         "error_type": "MergeConflict",
         "tags": ["git", "merge-conflict", "lockfile", "npm"],
-        "confidence": 0.98,
     },
     {
         "slug": "win-long-path",
@@ -184,7 +167,6 @@ SEED_DATA: list[dict] = [
         "error_type": "ENOENT",
         "language": "javascript",
         "tags": ["windows", "long-path", "node_modules", "enoent"],
-        "confidence": 0.92,
     },
     {
         "slug": "vite-prebundle",
@@ -194,7 +176,6 @@ SEED_DATA: list[dict] = [
         "language": "typescript",
         "framework": "vite",
         "tags": ["vite", "prebundling", "cache", "dependency"],
-        "confidence": 0.94,
     },
     {
         "slug": "rust-wasm-no-std",
@@ -203,7 +184,6 @@ SEED_DATA: list[dict] = [
         "error_type": "E0463",
         "language": "rust",
         "tags": ["wasm", "no-std", "wasm-bindgen", "target"],
-        "confidence": 0.91,
     },
     {
         "slug": "rust-borrow-loop",
@@ -212,7 +192,6 @@ SEED_DATA: list[dict] = [
         "error_type": "E0502",
         "language": "rust",
         "tags": ["borrow-checker", "mutable", "lifetime"],
-        "confidence": 0.90,
     },
     {
         "slug": "openai-rate-limit",
@@ -221,7 +200,6 @@ SEED_DATA: list[dict] = [
         "error_type": "RateLimitError",
         "language": "python",
         "tags": ["openai", "rate-limit", "backoff", "async"],
-        "confidence": 0.95,
     },
     {
         "slug": "hf-generate-gibberish",
@@ -231,7 +209,6 @@ SEED_DATA: list[dict] = [
         "language": "python",
         "framework": "transformers",
         "tags": ["huggingface", "fine-tuning", "generation", "repetition"],
-        "confidence": 0.88,
     },
 ]
 

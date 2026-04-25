@@ -60,12 +60,30 @@ def doctor():
 
     checks: list[tuple[str, bool, str]] = []
 
-    try:
-        result = subprocess.run(["docker", "info"], capture_output=True, text=True, timeout=5)
-        docker_ok = result.returncode == 0
-        checks.append(("Docker", docker_ok, "running" if docker_ok else "not running"))
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        checks.append(("Docker", False, "not found — install Docker Desktop"))
+    from ...docker import detect_runtime
+
+    runtime = detect_runtime()
+    if runtime is None:
+        checks.append(
+            (
+                "Container runtime",
+                False,
+                "not found — install Docker or Podman",
+            )
+        )
+    else:
+        try:
+            result = subprocess.run([runtime, "info"], capture_output=True, text=True, timeout=5)
+            running = result.returncode == 0
+            checks.append(
+                (
+                    f"Container runtime ({runtime})",
+                    running,
+                    "running" if running else "installed but daemon not reachable",
+                )
+            )
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            checks.append((f"Container runtime ({runtime})", False, "probe failed"))
 
     try:
         from ...docker import is_container_running

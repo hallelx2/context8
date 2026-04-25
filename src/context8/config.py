@@ -94,7 +94,20 @@ def continue_config_path() -> Path:
 
 
 def get_server_command() -> list[str]:
-    return ["python", "-m", "context8.mcp.server"]
+    """Absolute command Claude Code (or any agent) should launch for the MCP server.
+
+    Routes through the `serve` CLI so the auto-bootstrap (container, collection,
+    models) runs before the stdio loop starts. Prefers the installed `context8`
+    script on PATH; falls back to the current interpreter so the plugin works
+    even when the entry-point script isn't globally available.
+    """
+    import shutil
+    import sys
+
+    script = shutil.which("context8")
+    if script:
+        return [script, "serve"]
+    return [sys.executable, "-m", "context8", "serve"]
 
 
 SUPPORTED_AGENTS = {
