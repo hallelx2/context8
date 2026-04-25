@@ -473,6 +473,41 @@ git push --tags
 
 ---
 
+## Changelog
+
+### v0.4.0
+- **Container runtime**: Docker + Podman auto-detection with cached probing
+- **Self-bootstrapping serve**: `context8 serve` now starts DB, inits collection, and caches models before the MCP loop — works on a cold machine with zero prior setup
+- **`--no-bootstrap` flag**: skip auto-bootstrap if you manage infra manually
+- **Hybrid search restored**: sparse vector detection now reads collection info on every startup instead of defaulting to False
+- **Sparse search fix**: passes `SparseVector` object with `using="keywords"` (was rejected by server)
+- **Async MCP fix**: tool calls wrapped in `asyncio.to_thread` — no more event loop blocking
+- **Browse resource leak fix**: gRPC client always closed on no-results path
+- **Embedding cache fix**: hash full text, not just first 500 chars
+- **Configurable dims**: `TEXT_EMBED_DIM` / `CODE_EMBED_DIM` flow through everywhere
+- **CodeBERT env var**: `CONTEXT8_USE_CODE_MODEL=1` enables 768d code embeddings
+- **Browse + ecosystem MCP tools**: metadata filtering and stack-based discovery for skill writing
+- **Auto-capture + auto-suggest hooks**: Claude Code hooks for zero-effort logging and retrieval
+- **Session mining**: `context8 mine ~/.claude/sessions/`
+- **Export/import**: `context8 export -o backup.json` / `context8 import backup.json`
+- **Solution versioning**: same problem, different fix stored as variants
+- **Batch ingest**: ~20x faster for GitHub imports and seeding
+- **Claude Code plugin install**: `context8 add claude` writes to plugin directory, not settings.json
+
+### v0.3.0
+- Auto-start Docker, pre-download models, one-stop `context8 init`
+- Docker compose generated in `~/.context8/` for pip-installed users
+- Agent config for 6 agents: Claude Code, Claude Desktop, Cursor, VS Code, Windsurf, Gemini
+
+### v0.2.0
+- Framework restructure into subpackages
+- GitHub Issues importer, feedback loop, quality ranker, per-strategy attribution
+- Benchmark suite with Recall@K ablation
+- 79 unit tests
+
+### v0.1.0
+- Initial release: MCP server, hybrid search, 24 seed records, CLI
+
 ## License
 
 [MIT](LICENSE)
