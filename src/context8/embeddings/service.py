@@ -4,7 +4,7 @@ import hashlib
 import logging
 import os
 
-from ..config import CODE_MODEL, TEXT_MODEL
+from ..config import CODE_EMBED_DIM, CODE_MODEL, TEXT_EMBED_DIM, TEXT_MODEL
 from .tokenizer import BM25Tokenizer
 
 logger = logging.getLogger("context8.embeddings")
@@ -57,7 +57,7 @@ class EmbeddingService:
         return self._code_model
 
     def _cache_key(self, text: str, model_tag: str) -> str:
-        return hashlib.md5(f"{model_tag}:{text[:500]}".encode()).hexdigest()
+        return hashlib.md5(f"{model_tag}:{text}".encode()).hexdigest()
 
     def _get_cached(self, text: str, model_tag: str) -> list[float] | None:
         return self._cache.get(self._cache_key(text, model_tag))
@@ -68,7 +68,7 @@ class EmbeddingService:
 
     def embed_text(self, text: str) -> list[float]:
         if not text.strip():
-            return [0.0] * 384
+            return [0.0] * TEXT_EMBED_DIM
 
         cached = self._get_cached(text, "text")
         if cached is not None:
@@ -81,7 +81,7 @@ class EmbeddingService:
 
     def embed_code(self, code: str) -> list[float]:
         if not code.strip():
-            dim = 768 if self._use_code_model else 384
+            dim = CODE_EMBED_DIM if self._use_code_model else TEXT_EMBED_DIM
             return [0.0] * dim
 
         cached = self._get_cached(code, "code")
