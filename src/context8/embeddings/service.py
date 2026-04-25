@@ -2,11 +2,18 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 
 from ..config import CODE_MODEL, TEXT_MODEL
 from .tokenizer import BM25Tokenizer
 
 logger = logging.getLogger("context8.embeddings")
+
+_USE_CODE_MODEL_DEFAULT = os.environ.get("CONTEXT8_USE_CODE_MODEL", "").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 
 
 class EmbeddingService:
@@ -14,7 +21,7 @@ class EmbeddingService:
         self,
         text_model: str = TEXT_MODEL,
         code_model: str = CODE_MODEL,
-        use_code_model: bool = False,
+        use_code_model: bool = _USE_CODE_MODEL_DEFAULT,
         cache_size: int = 1024,
     ):
         self._text_model_name = text_model
