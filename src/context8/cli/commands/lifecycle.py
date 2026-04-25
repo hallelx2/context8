@@ -31,7 +31,7 @@ def start(detach: bool):
         console.print(f"  gRPC endpoint: [cyan]{DB_URL}[/]\n")
     else:
         console.print(f"\n[red]X Failed:[/] {msg}")
-        console.print("  Is Docker Desktop running?\n")
+        console.print("  Is your container runtime (Docker or Podman) running?\n")
         raise SystemExit(1)
 
 
@@ -58,7 +58,7 @@ def init(seed: bool, github: bool, force: bool):
     """Initialize Context8 — start DB, create collection, download models, seed.
 
     This is the one-stop setup command. It:
-    1. Starts Docker container if not running
+    1. Starts the DB container if not running (Docker or Podman)
     2. Creates the Actian VectorAI DB collection
     3. Downloads the embedding model (~80MB, cached after first run)
     4. Seeds with starter data (if --seed)
@@ -66,8 +66,8 @@ def init(seed: bool, github: bool, force: bool):
     """
     console.print("\n[bold blue]Context8[/] Initializing...\n")
 
-    # Step 1: Ensure Docker is running
-    console.print("  [dim]1/4[/] Docker container...", end="")
+    # Step 1: Ensure container runtime is running
+    console.print("  [dim]1/4[/] DB container...", end="")
     try:
         from ...docker import ensure_running
 
@@ -76,7 +76,7 @@ def init(seed: bool, github: bool, force: bool):
             console.print(f" [green]OK[/] {msg}")
         else:
             console.print(f" [red]X[/] {msg}")
-            console.print("  Is Docker Desktop running?\n")
+            console.print("  Is your container runtime (Docker or Podman) running?\n")
             raise SystemExit(1)
     except ImportError:
         console.print(" [yellow]skipped[/] (check Docker manually)")
