@@ -73,9 +73,7 @@ def doctor():
         )
     else:
         try:
-            result = subprocess.run(
-                [runtime, "info"], capture_output=True, text=True, timeout=5
-            )
+            result = subprocess.run([runtime, "info"], capture_output=True, text=True, timeout=5)
             running = result.returncode == 0
             checks.append(
                 (
