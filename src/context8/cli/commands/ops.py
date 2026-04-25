@@ -7,7 +7,7 @@ from rich import box
 from rich.panel import Panel
 from rich.table import Table
 
-from ...config import COLLECTION_NAME, DB_URL
+from ...config import COLLECTION_NAME, DB_URL, TEXT_EMBED_DIM
 from ..ui import check_actian_sdk, check_db_connection, console
 
 
@@ -142,7 +142,7 @@ def doctor():
                     import actian_vectorai as _av
 
                     _filter = _av.FilterBuilder().must(_av.Field("language").eq("python")).build()
-                    _zero = [0.0] * 384
+                    _zero = [0.0] * TEXT_EMBED_DIM
                     storage.client.points.search(
                         COLLECTION_NAME,
                         vector=_zero,

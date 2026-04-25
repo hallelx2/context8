@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import threading
 from typing import Any
@@ -25,11 +26,11 @@ async def list_tools() -> list[Tool]:
 async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
     try:
         # Try extra tools first (browse, ecosystem)
-        result = call_extra_tool(name, arguments)
+        result = await asyncio.to_thread(call_extra_tool, name, arguments)
         if result is not None:
             return result
         # Fall through to core tools
-        return tools_module.call_tool(name, arguments)
+        return await asyncio.to_thread(tools_module.call_tool, name, arguments)
     except Exception as e:
         logger.error(f"Tool '{name}' failed: {e}", exc_info=True)
         return [TextContent(type="text", text=f"Context8 error: {str(e)}")]
@@ -50,6 +51,4 @@ async def run_server():
 
 
 if __name__ == "__main__":
-    import asyncio
-
     asyncio.run(run_server())

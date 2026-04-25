@@ -103,8 +103,8 @@ class StorageService:
     def sparse_supported(self) -> bool:
         if self._sparse_supported is None:
             try:
-                self.client.collections.get_info(COLLECTION_NAME)
-                self._sparse_supported = False
+                info = self.client.collections.get_info(COLLECTION_NAME)
+                self._sparse_supported = bool(self._discover_sparse_vectors(info))
             except Exception:
                 self._sparse_supported = False
         return self._sparse_supported

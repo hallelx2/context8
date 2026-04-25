@@ -97,39 +97,40 @@ def _handle_browse(args: dict) -> list[TextContent]:
     from ..storage import StorageService
 
     storage = StorageService()
+    try:
+        records = browse(
+            storage,
+            tag=args.get("tag"),
+            language=args.get("language"),
+            framework=args.get("framework"),
+            error_type=args.get("error_type"),
+            limit=args.get("limit", 20),
+        )
 
-    records = browse(
-        storage,
-        tag=args.get("tag"),
-        language=args.get("language"),
-        framework=args.get("framework"),
-        error_type=args.get("error_type"),
-        limit=args.get("limit", 20),
-    )
+        if not records:
+            return [TextContent(type="text", text="No records match those filters.")]
 
-    if not records:
-        return [TextContent(type="text", text="No records match those filters.")]
+        lines = [f"Found {len(records)} record(s):\n"]
+        for i, r in enumerate(records, 1):
+            meta = []
+            if r.language:
+                meta.append(r.language)
+            if r.framework:
+                meta.append(r.framework)
+            if r.error_type:
+                meta.append(r.error_type)
+            meta_str = f" ({', '.join(meta)})" if meta else ""
 
-    lines = [f"Found {len(records)} record(s):\n"]
-    for i, r in enumerate(records, 1):
-        meta = []
-        if r.language:
-            meta.append(r.language)
-        if r.framework:
-            meta.append(r.framework)
-        if r.error_type:
-            meta.append(r.error_type)
-        meta_str = f" ({', '.join(meta)})" if meta else ""
+            lines.append(f"[{i}] {r.problem_text[:120]}{meta_str}")
+            lines.append(f"    Fix: {r.solution_text[:150]}")
+            if r.tags:
+                lines.append(f"    Tags: {', '.join(r.tags[:5])}")
+            lines.append(f"    ID: {r.id}  Confidence: {r.confidence:.0%}")
+            lines.append("")
 
-        lines.append(f"[{i}] {r.problem_text[:120]}{meta_str}")
-        lines.append(f"    Fix: {r.solution_text[:150]}")
-        if r.tags:
-            lines.append(f"    Tags: {', '.join(r.tags[:5])}")
-        lines.append(f"    ID: {r.id}  Confidence: {r.confidence:.0%}")
-        lines.append("")
-
-    storage.close()
-    return [TextContent(type="text", text="\n".join(lines))]
+        return [TextContent(type="text", text="\n".join(lines))]
+    finally:
+        storage.close()
 
 
 def _handle_ecosystem(args: dict) -> list[TextContent]:

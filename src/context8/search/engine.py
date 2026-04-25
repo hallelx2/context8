@@ -299,11 +299,11 @@ class SearchEngine:
         VectorAIError = av.exceptions.VectorAIError
 
         try:
+            sparse_vec = av.SparseVector(indices=indices, values=values)
             return self.storage.client.points.search(
                 COLLECTION_NAME,
-                vector=values,
-                vector_name="keywords",
-                sparse_indices=indices,
+                vector=sparse_vec,
+                using="keywords",
                 filter=search_filter,
                 limit=limit,
                 with_payload=True,
