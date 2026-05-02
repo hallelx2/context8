@@ -496,25 +496,52 @@ context8/
 ### Releasing
 
 ```bash
-# Bump version in pyproject.toml and src/context8/__init__.py, then:
-git tag v0.2.0
+# Bump version in pyproject.toml and src/context8/__init__.py, add a
+# changelog entry, then:
+git tag v1.0.0
 git push --tags
 # CI runs → PyPI publishes → GitHub Release created automatically
 ```
+
+Post-v1, follow [semver](https://semver.org/): bump the patch for fixes, the minor for additive features (e.g. a new backend), and the major only for breaking changes to the surface listed in the v1.0.0 changelog entry.
 
 ---
 
 ## Changelog
 
-### v0.5.0
-- **Pluggable storage backends.** SQLite + `sqlite-vec` + FTS5 is now the default — no Docker, no daemon, single-file DB at `~/.context8/context8.db`.
+### v1.0.0 — _SQLite-first, public API stable_
+
+The version jump from 0.x to 1.0 marks two things: (1) the default install is finally a one-command `pip install context8` with no non-PyPI wheels, and (2) the public surface — MCP tools, CLI command names, env-var conventions, and the `StorageBackend` Protocol — is now committed to under semver. Future backend additions (e.g. Postgres + pgvector for a hosted version) will be additive third Protocol implementations, not breaking changes.
+
+**Public API surface guaranteed under semver:**
+- MCP tools: `context8_search`, `context8_log`, `context8_rate`, `context8_search_solutions`, `context8_stats`.
+- CLI commands: `init`, `start`, `stop`, `doctor`, `stats`, `search`, `browse`, `add`, `remove`, `bench`, `demo`, `serve`, `export`, `import`, `import-github`, `mine`.
+- Env vars: `CONTEXT8_BACKEND`, `CONTEXT8_DB_PATH`, `CONTEXT8_DB_HOST`, `CONTEXT8_DB_PORT`, `CONTEXT8_USE_CODE_MODEL`, `CONTEXT8_TEXT_MODEL`, `CONTEXT8_CODE_MODEL`, `CONTEXT8_RECENCY_HALF_LIFE_DAYS`.
+- Backend Protocol: `StorageBackend` and the `SearchFilter` / `ScoredHit` dataclasses in `context8.storage`.
+- JSON export format (`format: "context8-export"`, `version: 1`) — backend-agnostic, used for cross-backend migration.
+
+**What changed in this release** (full rollup from 0.4.0):
+
+- **Pluggable storage backends.** SQLite + `sqlite-vec` + FTS5 is the new default — no Docker, no daemon, single-file DB at `~/.context8/context8.db`.
 - **Backward-compatible Actian backend.** `pip install context8[actian]` and `CONTEXT8_BACKEND=actian` keep the original hackathon stack working.
 - **Search engine refactor.** `search/engine.py` no longer imports a vendor SDK; it talks to a `StorageBackend` Protocol. RRF moved to `search/fusion.py` as pure Python.
 - **Backend-aware CLI.** `start`/`stop` print "no daemon needed" under SQLite; `init` runs schema migrations; `doctor` checks file integrity, WAL mode, vec0 + FTS5 modules.
 - **Concurrency.** WAL mode + 5s busy timeout for parallel MCP reads while ingest writes.
 - **vec0 dim guard.** Flipping `CONTEXT8_USE_CODE_MODEL` after init fails loudly with a `--force` hint instead of silently corrupting the DB.
-- **New tests.** `tests/test_storage_sqlite.py` (18 unit tests), `tests/test_e2e_sqlite.py` (full e2e on SQLite), `tests/test_search_filter.py` (filter translation).
+- **New tests.** `tests/test_storage_sqlite.py` (18 unit tests), `tests/test_e2e_sqlite.py` (full e2e on SQLite), `tests/test_search_filter.py` (filter translation). 127 tests pass on a fresh checkout, 15 Actian-only tests skip cleanly without `CONTEXT8_BACKEND=actian`.
 - **Fixed pre-existing test bug.** `FeedbackService(storage, embeddings)` arity mismatch in `test_e2e.py:281,300`.
+
+**Migration from 0.4.x:**
+
+```bash
+# If you had data in the Actian backend:
+CONTEXT8_BACKEND=actian context8 export -o backup.json
+pip install -U context8                    # pulls v1.0.0
+context8 init                              # creates fresh SQLite DB
+context8 import backup.json                # re-embeds and imports
+```
+
+If you want to keep using Actian: `pip install -U "context8[actian]"` and set `CONTEXT8_BACKEND=actian`. No other changes required.
 
 ### v0.4.0
 - **Container runtime**: Docker + Podman auto-detection with cached probing
