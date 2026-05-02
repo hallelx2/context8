@@ -100,9 +100,7 @@ def init(seed: bool, github: bool, force: bool):
                 console.print(f" [green]OK[/] {msg}")
             else:
                 console.print(f" [red]X[/] {msg}")
-                console.print(
-                    "  Is your container runtime (Docker or Podman) running?\n"
-                )
+                console.print("  Is your container runtime (Docker or Podman) running?\n")
                 raise SystemExit(1)
         except ImportError:
             console.print(" [yellow]skipped[/] (check Docker manually)")

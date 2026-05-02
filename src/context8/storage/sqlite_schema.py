@@ -179,8 +179,7 @@ def apply_migrations(
 
     # Record schema version (idempotent).
     conn.execute(
-        "INSERT INTO schema_version(version) VALUES(?) "
-        "ON CONFLICT(version) DO NOTHING",
+        "INSERT INTO schema_version(version) VALUES(?) ON CONFLICT(version) DO NOTHING",
         (CURRENT_SCHEMA_VERSION,),
     )
 

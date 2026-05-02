@@ -185,9 +185,7 @@ def _doctor_sqlite() -> list[tuple[str, bool, str]]:
                 (
                     "Sparse (FTS5)",
                     sparse,
-                    "fts_records virtual table present"
-                    if sparse
-                    else "FTS5 unavailable",
+                    "fts_records virtual table present" if sparse else "FTS5 unavailable",
                 )
             )
             checks.append(
@@ -243,9 +241,7 @@ def _doctor_actian() -> list[tuple[str, bool, str]]:
         checks.append(("Container runtime", False, "not found — install Docker or Podman"))
     else:
         try:
-            result = subprocess.run(
-                [runtime, "info"], capture_output=True, text=True, timeout=5
-            )
+            result = subprocess.run([runtime, "info"], capture_output=True, text=True, timeout=5)
             running = result.returncode == 0
             checks.append(
                 (
@@ -273,9 +269,7 @@ def _doctor_actian() -> list[tuple[str, bool, str]]:
     checks.append(("actian-vectorai SDK", sdk_ok, sdk_info))
 
     db_ok, db_info = check_backend()
-    checks.append(
-        ("Database connection", db_ok, db_info if db_ok else f"failed — {db_info}")
-    )
+    checks.append(("Database connection", db_ok, db_info if db_ok else f"failed — {db_info}"))
 
     if db_ok:
         try:
@@ -323,9 +317,7 @@ def _doctor_actian() -> list[tuple[str, bool, str]]:
                     (
                         "Hybrid fusion ready",
                         hybrid,
-                        "dense + sparse + RRF fusion available"
-                        if hybrid
-                        else "missing components",
+                        "dense + sparse + RRF fusion available" if hybrid else "missing components",
                     )
                 )
 

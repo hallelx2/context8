@@ -237,9 +237,7 @@ class ActianBackend:
 
     def get_record(self, record_id: str) -> ResolutionRecord | None:
         try:
-            results = self.client.points.get(
-                COLLECTION_NAME, ids=[record_id], with_payload=True
-            )
+            results = self.client.points.get(COLLECTION_NAME, ids=[record_id], with_payload=True)
             if not results:
                 return None
             return ResolutionRecord.from_payload(str(results[0].id), results[0].payload)

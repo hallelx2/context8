@@ -102,8 +102,7 @@ class SQLiteBackend:
                 import sqlite_vec
             except ImportError as exc:  # pragma: no cover
                 raise ImportError(
-                    "sqlite-vec is required for the SQLite backend.\n"
-                    "  pip install sqlite-vec"
+                    "sqlite-vec is required for the SQLite backend.\n  pip install sqlite-vec"
                 ) from exc
 
             conn = sqlite3.connect(
@@ -160,9 +159,7 @@ class SQLiteBackend:
             self._upsert_record_row(record)
             self._upsert_vec("vec_problem", "problem_vec", record.id, vectors["problem"])
             self._upsert_vec("vec_solution", "solution_vec", record.id, vectors["solution"])
-            self._upsert_vec(
-                "vec_code_context", "code_vec", record.id, vectors["code_context"]
-            )
+            self._upsert_vec("vec_code_context", "code_vec", record.id, vectors["code_context"])
             self._upsert_fts(record)
             c.execute("COMMIT")
         except Exception:
@@ -187,9 +184,7 @@ class SQLiteBackend:
         return self.store_record(record, vectors)
 
     def get_record(self, record_id: str) -> ResolutionRecord | None:
-        row = self.conn.execute(
-            "SELECT * FROM records WHERE id = ?", (record_id,)
-        ).fetchone()
+        row = self.conn.execute("SELECT * FROM records WHERE id = ?", (record_id,)).fetchone()
         if row is None:
             return None
         return _row_to_record(row)
@@ -272,9 +267,7 @@ class SQLiteBackend:
             ),
         )
 
-    def _upsert_vec(
-        self, table: str, column: str, record_id: str, vec: list[float]
-    ) -> None:
+    def _upsert_vec(self, table: str, column: str, record_id: str, vec: list[float]) -> None:
         # vec0 doesn't support ON CONFLICT in 0.1.x — delete + insert pattern.
         self.conn.execute(f"DELETE FROM {table} WHERE record_id = ?", (record_id,))
         self.conn.execute(
@@ -349,9 +342,7 @@ class SQLiteBackend:
             f"SELECT r.*, v.distance AS _distance "
             f"FROM {table} v "
             f"JOIN records r ON r.id = v.record_id "
-            f"WHERE v.{column} MATCH ? AND k = ?"
-            + where_sql
-            + " ORDER BY v.distance"
+            f"WHERE v.{column} MATCH ? AND k = ?" + where_sql + " ORDER BY v.distance"
         )
         params = [_serialize_f32(vector), int(limit), *where_params]
         try:
@@ -364,9 +355,7 @@ class SQLiteBackend:
         for row in rows:
             distance = float(row["_distance"])
             score = 1.0 - distance  # cosine_distance ∈ [0, 2] → score ∈ [-1, 1]
-            hits.append(
-                ScoredHit(record_id=row["id"], score=score, record=_row_to_record(row))
-            )
+            hits.append(ScoredHit(record_id=row["id"], score=score, record=_row_to_record(row)))
         return hits
 
     def search_sparse(
@@ -390,9 +379,7 @@ class SQLiteBackend:
             "SELECT r.*, fts.rank AS _rank "
             "FROM fts_records fts "
             "JOIN records r ON r.id = fts.record_id "
-            "WHERE fts.fts_records MATCH ?"
-            + where_sql
-            + " ORDER BY fts.rank LIMIT ?"
+            "WHERE fts.fts_records MATCH ?" + where_sql + " ORDER BY fts.rank LIMIT ?"
         )
         params = [match_query, *where_params, int(limit)]
         try:
@@ -406,9 +393,7 @@ class SQLiteBackend:
             # FTS5 BM25 rank is negative (lower = better). We expose
             # ``score = -rank`` so higher = better, matching the dense path.
             score = -float(row["_rank"])
-            hits.append(
-                ScoredHit(record_id=row["id"], score=score, record=_row_to_record(row))
-            )
+            hits.append(ScoredHit(record_id=row["id"], score=score, record=_row_to_record(row)))
         return hits
 
     # ------------------------------------------------------------------

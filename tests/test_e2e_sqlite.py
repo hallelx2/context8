@@ -154,9 +154,7 @@ class TestFilteredSearch:
 
         storage, _ = seeded
         engine = SearchEngine(storage, embeddings)
-        unfiltered = engine.search(
-            "error", use_filter=False, resolved_only=False, limit=10
-        )
+        unfiltered = engine.search("error", use_filter=False, resolved_only=False, limit=10)
         filtered = engine.search(
             "error",
             language="rust",
@@ -357,9 +355,7 @@ class TestBrowseAndExportImport:
             ResolutionRecord(
                 problem_text="problem one", solution_text="sol one", language="python"
             ),
-            ResolutionRecord(
-                problem_text="problem two", solution_text="sol two", language="rust"
-            ),
+            ResolutionRecord(problem_text="problem two", solution_text="sol two", language="rust"),
         )
         for rec in recs:
             v = embeddings.embed_record(rec.problem_text, rec.solution_text, "")

@@ -54,9 +54,7 @@ def _make_backend(name: str) -> StorageBackend:
             text_dim=TEXT_EMBED_DIM,
             code_dim=CODE_EMBED_DIM,
         )
-    raise ValueError(
-        f"Unknown CONTEXT8_BACKEND={name!r}. Supported: 'sqlite' (default), 'actian'."
-    )
+    raise ValueError(f"Unknown CONTEXT8_BACKEND={name!r}. Supported: 'sqlite' (default), 'actian'.")
 
 
 class StorageService:

@@ -42,8 +42,7 @@ def reciprocal_rank_fusion(
         weights = [1.0] * len(result_lists)
     if len(weights) != len(result_lists):
         raise ValueError(
-            f"weights length ({len(weights)}) must match result_lists "
-            f"({len(result_lists)})"
+            f"weights length ({len(weights)}) must match result_lists ({len(result_lists)})"
         )
 
     fused_scores: dict[str, float] = {}
@@ -51,9 +50,7 @@ def reciprocal_rank_fusion(
 
     for weight, hits in zip(weights, result_lists):
         for rank, hit in enumerate(hits, start=1):
-            fused_scores[hit.record_id] = (
-                fused_scores.get(hit.record_id, 0.0) + weight / (k + rank)
-            )
+            fused_scores[hit.record_id] = fused_scores.get(hit.record_id, 0.0) + weight / (k + rank)
             payloads.setdefault(hit.record_id, hit)
 
     ordered_ids = sorted(fused_scores.items(), key=lambda kv: -kv[1])

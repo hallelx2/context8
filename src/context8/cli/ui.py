@@ -58,10 +58,7 @@ def _check_actian() -> tuple[bool, str]:
     try:
         from actian_vectorai import VectorAIClient
     except ImportError:
-        return False, (
-            "actian-vectorai SDK not installed — run:\n"
-            "    pip install context8[actian]"
-        )
+        return False, ("actian-vectorai SDK not installed — run:\n    pip install context8[actian]")
     try:
         with VectorAIClient(DB_URL, timeout=5.0) as client:
             info = client.health_check()
