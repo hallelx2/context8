@@ -1,21 +1,23 @@
 """End-to-end integration tests against a live Actian VectorAI DB.
 
-These tests are the proof that Context8's three "advanced features"
-actually work end-to-end: collection creation with named + sparse
-vectors, hybrid retrieval, and filtered search.
+These tests cover the legacy hackathon-era backend. They auto-skip
+unless ``CONTEXT8_BACKEND=actian`` is set AND the SDK is installed AND
+a container is reachable at ``$CONTEXT8_DB_HOST:$CONTEXT8_DB_PORT``.
 
-They auto-skip when the DB isn't reachable so CI on machines without
-Docker still passes. To run them locally:
+The default test run uses the SQLite backend — see
+:mod:`tests.test_e2e_sqlite` for the equivalent suite that runs
+without any infrastructure.
 
+To run these locally:
+
+    pip install context8[actian]
     docker compose up -d
-    pytest tests/test_e2e.py -v
-
-Each test uses a unique collection name so multiple runs (and parallel
-CI workers) don't collide.
+    CONTEXT8_BACKEND=actian pytest tests/test_e2e.py -v
 """
 
 from __future__ import annotations
 
+import os
 import socket
 import uuid
 
@@ -26,6 +28,10 @@ from context8.config import DB_HOST, DB_PORT
 from context8.embeddings import EmbeddingService
 from context8.feedback import FeedbackService
 from context8.models import FeedbackStats, ResolutionRecord
+
+
+def _backend_is_actian() -> bool:
+    return os.environ.get("CONTEXT8_BACKEND", "sqlite").lower() == "actian"
 
 
 def _db_reachable() -> bool:
@@ -46,6 +52,11 @@ def _sdk_installed() -> bool:
 
 
 pytestmark = [
+    pytest.mark.actian,
+    pytest.mark.skipif(
+        not _backend_is_actian(),
+        reason="set CONTEXT8_BACKEND=actian to run this suite",
+    ),
     pytest.mark.skipif(not _sdk_installed(), reason="actian-vectorai SDK not installed"),
     pytest.mark.skipif(
         not _db_reachable(), reason=f"Actian DB not reachable at {DB_HOST}:{DB_PORT}"
@@ -59,12 +70,10 @@ def isolated_collection(monkeypatch):
     name = f"context8_test_{uuid.uuid4().hex[:8]}"
     monkeypatch.setattr(ctx_config, "COLLECTION_NAME", name)
 
-    # Patch the same constant in modules that imported it at module load.
-    from context8 import storage as storage_mod
-    from context8.search import engine as engine_mod
+    # Patch the same constant in every module that imported it at load time.
+    from context8.storage import actian_backend as actian_mod
 
-    monkeypatch.setattr(storage_mod, "COLLECTION_NAME", name)
-    monkeypatch.setattr(engine_mod, "COLLECTION_NAME", name)
+    monkeypatch.setattr(actian_mod, "COLLECTION_NAME", name)
 
     yield name
 
@@ -278,7 +287,7 @@ class TestAblation:
 class TestFeedbackLoop:
     def test_rate_persists_and_roundtrips(self, seeded, embeddings):
         storage, records = seeded
-        feedback = FeedbackService(storage, embeddings)
+        feedback = FeedbackService(storage)
         target = records[0]
 
         outcome = feedback.rate(target.id, worked=True)
@@ -297,7 +306,7 @@ class TestFeedbackLoop:
 
     def test_rate_unknown_record_rejected(self, seeded, embeddings):
         storage, _ = seeded
-        feedback = FeedbackService(storage, embeddings)
+        feedback = FeedbackService(storage)
         outcome = feedback.rate("00000000-0000-0000-0000-000000000000", worked=True)
         assert not outcome.accepted
 

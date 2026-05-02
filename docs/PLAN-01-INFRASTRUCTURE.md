@@ -1,3 +1,5 @@
+> _Historical hackathon artifact._ Context8 is now SQLite-first by default; the Actian backend is optional. See [README.md](../README.md) and [CLAUDE.md](../CLAUDE.md) for the current architecture.
+
 # Plan 01 — Infrastructure Setup
 
 ## Objective

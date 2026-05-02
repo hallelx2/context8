@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>Collective problem-solving memory for coding agents</strong><br>
-  <em>Powered by <a href="https://github.com/hackmamba-io/actian-vectorAI-db-beta">Actian VectorAI DB</a></em>
+  <em>Local-first by default — SQLite + sqlite-vec. No daemon. No Docker.</em>
 </p>
 
 <p align="center">
@@ -45,36 +45,44 @@ Agent hits error → searches Context8 → finds a past solution → applies it
 
 | Requirement | Why |
 |---|---|
-| [Docker Desktop](https://www.docker.com/products/docker-desktop/) | Runs the Actian VectorAI DB container locally |
-| Python 3.10+ | Runs the Context8 CLI and MCP server |
+| Python 3.10+ | Runs the Context8 CLI and MCP server. SQLite ships with stdlib; `sqlite-vec` and FTS5 do the rest. |
+
+That's it — no Docker, no daemon, no separate database to install.
 
 ## Quick Start
 
 ```bash
-# 1. Install context8 + the Actian VectorAI DB client
-pip install context8 "actian-vectorai @ https://github.com/hackmamba-io/actian-vectorAI-db-beta/raw/main/actian_vectorai-0.1.0b2-py3-none-any.whl"
+# 1. Install Context8
+pip install context8
 
-# Or with uv
-uv pip install context8 "actian-vectorai @ https://github.com/hackmamba-io/actian-vectorAI-db-beta/raw/main/actian_vectorai-0.1.0b2-py3-none-any.whl"
-
-# 2. Start the database (pulls and runs the Docker container)
-context8 start
-
-# 3. Initialize and seed with 24 curated problem-solution pairs
+# 2. Initialize the local DB and seed with 23 curated problem-solution pairs
 context8 init --seed
 
-# 4. Add to your coding agent (pick one)
-context8 add claude       # Claude Code
-context8 add cursor       # Cursor
-context8 add windsurf     # Windsurf
+# 3. Wire up your coding agent (pick one)
+context8 add claude-code   # Claude Code
+context8 add cursor        # Cursor
+context8 add windsurf      # Windsurf
 
-# 5. Verify everything works
+# 4. Verify everything works
 context8 doctor
 ```
 
-Restart your agent. It now has three new tools: **`context8_search`**, **`context8_log`**, and **`context8_stats`**.
+Restart your agent. It now has these MCP tools: **`context8_search`**, **`context8_log`**, **`context8_rate`**, **`context8_search_solutions`**, **`context8_stats`**.
 
-> **Why two packages?** The `actian-vectorai` SDK is distributed by Actian as a beta wheel and is not yet on PyPI. Context8 is on PyPI. Once Actian publishes their SDK to PyPI, this becomes a single `pip install context8`.
+The DB lives at `~/.context8/context8.db` — a single SQLite file with three named vector spaces (`problem`, `solution`, `code_context`) backed by [sqlite-vec](https://github.com/asg017/sqlite-vec) and an FTS5 BM25 index for keyword search.
+
+### Optional: Actian VectorAI DB backend
+
+The original hackathon submission used Actian VectorAI DB over gRPC. That stack is still supported as an optional backend:
+
+```bash
+pip install "context8[actian]"
+docker compose up -d                       # starts the Actian container
+CONTEXT8_BACKEND=actian context8 init --seed
+CONTEXT8_BACKEND=actian context8 doctor
+```
+
+Set `CONTEXT8_BACKEND=actian` (or leave unset for the default `sqlite`). The same MCP tools, search semantics, and CLI commands work across both backends.
 
 ---
 
@@ -89,7 +97,7 @@ Coding agents have multiple ways to get help. Here's where each one fits and whe
 | **Context 1–6** | Codebase, conversation, memory | Your current project's files and history | Only knows *your* code |
 | **Context7** | Official documentation (Upstash) | API references, common usage patterns, getting-started guides | Only covers *documented* knowledge |
 | **Skills / CLAUDE.md** | Hand-written rules | Project conventions, tool-specific patterns, coding style | Manual maintenance, doesn't learn |
-| **Context8** | Agent problem-solving history (Actian VectorAI DB) | Uncommon errors, workarounds, integration bugs, agent-discovered fixes | Needs seeding and accumulation |
+| **Context8** | Agent problem-solving history (local SQLite + sqlite-vec) | Uncommon errors, workarounds, integration bugs, agent-discovered fixes | Needs seeding and accumulation |
 
 ### When Each One Helps (and When It Doesn't)
 
@@ -127,7 +135,7 @@ Agent encounters error
 
 ## How It Works
 
-Context8 is an [MCP server](https://modelcontextprotocol.io/) backed by Actian VectorAI DB. When your agent encounters an error:
+Context8 is an [MCP server](https://modelcontextprotocol.io/) backed by SQLite + sqlite-vec by default (Actian VectorAI DB optional). When your agent encounters an error:
 
 1. **Search** — Agent calls `context8_search("TypeError Cannot read properties of undefined map React Suspense")`
 2. **Match** — Context8 runs hybrid search: dense semantic vectors find meaning-similar problems, sparse keyword vectors catch exact error tokens, metadata filters narrow by language/framework
@@ -139,8 +147,8 @@ Context8 is an [MCP server](https://modelcontextprotocol.io/) backed by Actian V
 | Strategy | Vector Space | What It Catches | Example |
 |---|---|---|---|
 | **Dense search** | `problem` (384d, MiniLM) | Semantic meaning | "undefined array access" matches "null reference on collection" |
-| **Dense search** | `code_context` (768d, CodeBERT) | Code patterns | `data?.items ?? []` matches `optional chaining null safety` |
-| **Sparse search** | `keywords` (BM25) | Exact tokens | `ModuleNotFoundError` matches `ModuleNotFoundError` exactly |
+| **Dense search** | `code_context` (384d default, 768d with `CONTEXT8_USE_CODE_MODEL=1` for CodeBERT) | Code patterns | `data?.items ?? []` matches `optional chaining null safety` |
+| **Sparse search** | FTS5 BM25 (SQLite) or sparse keyword vectors (Actian) | Exact tokens | `ModuleNotFoundError` matches `ModuleNotFoundError` exactly |
 
 Results are fused with **Reciprocal Rank Fusion (RRF)** and filtered by language, framework, and more. The `QueryAnalyzer` auto-detects query type and adjusts fusion weights:
 
@@ -192,11 +200,11 @@ Output: Record count, collection status, vector spaces, endpoint
 ### Setup
 
 ```bash
-context8 start                  # Start the Actian VectorAI DB container
-context8 stop                   # Stop the container
-context8 init                   # Create the collection
+context8 init                   # Create the local DB (no daemon)
 context8 init --seed            # Create + seed with starter data
 context8 init --seed --force    # Drop, recreate, and reseed
+context8 start                  # No-op for SQLite; starts container under [actian]
+context8 stop                   # No-op for SQLite; stops container under [actian]
 ```
 
 ### Agent Integration
@@ -278,44 +286,43 @@ Final score = `retrieval × confidence_factor × recency_factor × worked_ratio_
 │                   Context8 MCP Server                        │
 │                                                              │
 │  ┌────────────────┐  ┌───────────────┐  ┌────────────────┐  │
-│  │   Embedding    │  │    Search     │  │    Storage     │  │
-│  │   Pipeline     │  │    Engine     │  │    Service     │  │
+│  │   Embedding    │  │    Search     │  │ StorageService │  │
+│  │   Pipeline     │  │    Engine     │  │   (facade)     │  │
 │  │                │  │               │  │                │  │
-│  │  MiniLM 384d   │  │  Dense+Sparse │  │  Named Vecs   │  │
-│  │  CodeBERT 768d │  │  RRF Fusion   │  │  Filters      │  │
-│  │  BM25 Sparse   │  │  QueryAnalyze │  │  Dedup        │  │
-│  └────────────────┘  └───────────────┘  └────────────────┘  │
-└──────────────────────────┬──────────────────────────────────┘
-                           │ gRPC :50051
-                ┌──────────▼──────────┐
-                │  Actian VectorAI DB │
-                │  (Docker Container) │
-                │                     │
-                │  Collection:        │
-                │   context8_store    │
-                │                     │
-                │  Named Vectors:     │
-                │   • problem  384d   │
-                │   • solution 384d   │
-                │   • code_ctx 768d   │
-                │  Sparse: keywords   │
-                │  Payload: metadata  │
-                └─────────────────────┘
+│  │  MiniLM 384d   │  │  Dense+Sparse │  │  Pluggable     │  │
+│  │  CodeBERT 768d │  │  RRF (Python) │  │  Backend       │  │
+│  │  (opt-in)      │  │  QueryAnalyze │  │  Protocol      │  │
+│  └────────────────┘  └───────────────┘  └────────┬───────┘  │
+└────────────────────────────────────────────────────┼────────┘
+                                                    │
+        ┌───────────────────────┬───────────────────┘
+        │                       │
+        ▼ default               ▼ opt-in (CONTEXT8_BACKEND=actian)
+┌─────────────────────────┐   ┌─────────────────────────┐
+│  SQLiteBackend          │   │  ActianBackend          │
+│  ~/.context8/context8.db│   │  Docker container :50051│
+│                         │   │  (gRPC)                 │
+│  • vec_problem  vec0    │   │  Collection:            │
+│  • vec_solution vec0    │   │   context8_store        │
+│  • vec_code_context vec0│   │  Named Vectors:         │
+│  • fts_records (FTS5)   │   │   • problem  384d       │
+│  • records (SQL + JSON1)│   │   • solution 384d       │
+│  • WAL mode             │   │   • code_ctx 384/768d   │
+│                         │   │  Sparse: keywords       │
+└─────────────────────────┘   └─────────────────────────┘
 ```
 
 ---
 
-## Hackathon: Advanced Features Used
+## Capabilities (and how each backend delivers them)
 
-> Built for the [Actian VectorAI DB Build Challenge](https://dorahacks.io/)
+The same three capabilities work across both backends — only the underlying mechanism differs.
 
-This project uses **all three** advanced features required by the hackathon — and ships a benchmark that proves each one is load-bearing, not decorative.
-
-| Feature | How Context8 Uses It | Why It Matters |
+| Capability | SQLite + sqlite-vec (default) | Actian VectorAI DB (optional) |
 |---|---|---|
-| **Hybrid Fusion** | Dense semantic + sparse BM25 keyword vectors, fused with RRF | Error messages contain both *meaning* and *exact tokens* — you need both |
-| **Filtered Search** | Metadata filters by language, framework, error type, resolution status | A Python agent doesn't need TypeScript solutions |
-| **Named Vectors** | 3 separate spaces: `problem` (384d), `solution` (384d), `code_context` (768d) — all three queried at runtime | Error descriptions, fix descriptions, and code are semantically different domains |
+| **Hybrid Fusion** | Dense vec0 KNN + FTS5 BM25, fused with RRF in pure Python | Dense + sparse vectors, fused with `av.reciprocal_rank_fusion` |
+| **Filtered Search** | SQL `WHERE` over indexed columns + JSON1 `json_each` for tag arrays | `FilterBuilder` over the payload |
+| **Named Vectors** | 3 vec0 virtual tables: `vec_problem`, `vec_solution`, `vec_code_context` | 3 named vector spaces in one collection |
 
 ### Prove it: `context8 bench`
 
@@ -326,7 +333,14 @@ context8 init --seed
 context8 bench
 ```
 
-The output table shows Recall@1, Recall@3, Recall@5, MRR, and p50 latency for four configurations — `dense only` → `+ named vectors` → `+ hybrid fusion` → `+ filtered search` — with green deltas vs the baseline. Each row turns on one more Actian feature. The deltas are the proof.
+The output table shows Recall@1, Recall@3, Recall@5, MRR, and p50 latency for four configurations — `dense only` → `+ named vectors` → `+ hybrid fusion` → `+ filtered search` — with green deltas vs the baseline. Each row turns on one more retrieval feature. The deltas are the proof.
+
+Run it under either backend:
+
+```bash
+context8 bench                          # SQLite (default)
+CONTEXT8_BACKEND=actian context8 bench  # Actian
+```
 
 ### See it: `context8 demo`
 
@@ -342,13 +356,17 @@ context8 demo
 
 ### Verify it: `context8 doctor`
 
-The health check now asserts the three features are actually live — no silent degradation:
+The health check asserts the three features are actually live — no silent degradation:
 
 ```
-Named vectors (≥3)        ✓  3 found: code_context, problem, solution
-Sparse vectors            ✓  enabled: keywords
-Hybrid fusion ready       ✓  dense + sparse + RRF fusion available
-Filtered search           ✓  FilterBuilder query succeeded
+sqlite-vec                ✓  0.1.9
+Backend connectivity      ✓  SQLite + sqlite-vec @ ~/.context8/context8.db
+Schema                    ✓  records table present (23 rows)
+Named vectors (3)         ✓  3 found: code_context, problem, solution
+Sparse (FTS5)             ✓  fts_records virtual table present
+Hybrid fusion ready       ✓  dense + sparse + RRF available
+WAL mode                  ✓  journal_mode=wal
+Filtered scroll           ✓  returned N record(s)
 ```
 
 ---
@@ -357,10 +375,11 @@ Filtered search           ✓  FilterBuilder query succeeded
 
 | Component | Technology | Purpose |
 |---|---|---|
-| Vector Database | [Actian VectorAI DB](https://github.com/hackmamba-io/actian-vectorAI-db-beta) | Storage, indexing, HNSW search |
+| Vector Storage (default) | [sqlite-vec](https://github.com/asg017/sqlite-vec) | Local KNN over named vector spaces in stock SQLite |
+| Lexical Storage (default) | SQLite [FTS5](https://www.sqlite.org/fts5.html) | Native BM25 index, no extra dependency |
+| Vector Storage (optional) | [Actian VectorAI DB](https://github.com/hackmamba-io/actian-vectorAI-db-beta) | Hackathon-era backend behind `pip install context8[actian]` |
 | Dense Embeddings | `sentence-transformers/all-MiniLM-L6-v2` | 384d text vectors (problems, solutions) |
-| Code Embeddings | `microsoft/codebert-base` | 768d code-aware vectors (opt-in) |
-| Sparse Embeddings | Custom BM25 tokenizer | Exact keyword matching |
+| Code Embeddings | `microsoft/codebert-base` | 768d code-aware vectors (opt-in via `CONTEXT8_USE_CODE_MODEL=1`) |
 | MCP Server | Python `mcp` SDK | stdio transport to agents |
 | CLI | Click + Rich | Terminal UX with tables, panels, health checks |
 | CI/CD | GitHub Actions | Lint → Test → Build → Publish to PyPI |
@@ -370,7 +389,7 @@ Filtered search           ✓  FilterBuilder query succeeded
 
 ## Seed Data
 
-Context8 ships with **24 curated problem-solution pairs** to solve the cold start problem:
+Context8 ships with **23 curated problem-solution pairs** to solve the cold start problem:
 
 | Category | Count | Examples |
 |---|---|---|
@@ -398,15 +417,20 @@ git clone https://github.com/hallelx2/context8.git
 cd context8
 uv venv && source .venv/bin/activate  # or: .venv\Scripts\activate on Windows
 
-# Install context8 + dev deps + actian client
-uv pip install -e ".[all]" "actian-vectorai @ https://github.com/hackmamba-io/actian-vectorAI-db-beta/raw/main/actian_vectorai-0.1.0b2-py3-none-any.whl"
+# Install context8 with dev dependencies (SQLite backend works out of the box)
+uv pip install -e ".[all]"
 
-# Start the DB and verify
-context8 start
+# Initialise the local DB and verify
+context8 init
 context8 doctor
 
-# Run tests (29 unit tests, no DB needed)
+# Run the full test suite (~125 tests, all run against SQLite, no infrastructure)
 pytest tests/ -v
+
+# Run the legacy Actian e2e suite — install the extra and start the container first:
+uv pip install -e ".[actian]"
+docker compose up -d
+CONTEXT8_BACKEND=actian pytest tests/ -v
 
 # Lint + format
 ruff check src/ tests/
@@ -420,43 +444,50 @@ context8/
 ├── src/context8/
 │   ├── __init__.py
 │   ├── __main__.py
-│   ├── config.py             # Constants, paths, agent registry, ranker tuning
+│   ├── config.py             # Constants, env-driven backend resolution, paths
 │   ├── models.py             # ResolutionRecord, FeedbackStats, Attribution, SearchResult
-│   ├── storage.py            # Actian VectorAI DB client (named + sparse fallback)
+│   ├── storage/              # Pluggable storage package (NEW)
+│   │   ├── backend.py        # StorageBackend Protocol + SearchFilter + ScoredHit
+│   │   ├── sqlite_schema.py  # DDL + apply_migrations + dim guard
+│   │   ├── sqlite_backend.py # SQLite + sqlite-vec + FTS5 (default backend)
+│   │   ├── actian_backend.py # Legacy Actian VectorAI DB backend
+│   │   └── service.py        # StorageService env-driven facade
 │   ├── agents.py             # Editor MCP config writer (Claude/Cursor/Windsurf)
 │   ├── feedback.py           # FeedbackService — agent rate-this-fix loop
 │   ├── embeddings/
 │   │   ├── service.py        # MiniLM + CodeBERT lazy loaders
-│   │   └── tokenizer.py      # BM25 sparse tokenizer
+│   │   └── tokenizer.py      # BM25 tokenizer (used by ActianBackend.search_sparse)
 │   ├── search/
-│   │   ├── engine.py         # Hybrid search with ablation flags
+│   │   ├── engine.py         # Backend-agnostic hybrid search + ablation flags
+│   │   ├── fusion.py         # Pure-Python Reciprocal Rank Fusion (NEW)
 │   │   ├── analyzer.py       # QueryAnalyzer (per-query weight tuning)
 │   │   ├── ranking.py        # Confidence + recency + worked-ratio booster
-│   │   └── attribution.py    # Per-strategy score tracking
+│   │   └── attribution.py    # Per-strategy score tracking (backend-agnostic)
 │   ├── ingest/
 │   │   ├── pipeline.py       # Generic ingest pipeline
-│   │   ├── seed.py           # 24 curated problem-solution starter records
+│   │   ├── seed.py           # 23 curated problem-solution starter records
 │   │   └── github.py         # GitHub Issues importer (pull resolved bugs)
 │   ├── benchmark/
 │   │   ├── ground_truth.py   # 27 query→record evaluation pairs
 │   │   └── runner.py         # Recall@K / MRR / latency evaluator
+│   ├── docker.py             # Container helpers (Actian only — no-ops on SQLite)
 │   ├── mcp/
 │   │   ├── server.py         # MCP server entry point
 │   │   └── tools.py          # 5 MCP tools (search/log/rate/search_solutions/stats)
 │   └── cli/
 │       ├── main.py           # Click group entry
-│       ├── ui.py             # Rich helpers + DB connection check
+│       ├── ui.py             # Rich helpers + backend-aware health checks
 │       └── commands/
-│           ├── lifecycle.py  # start / stop / init
-│           ├── ops.py        # stats / doctor / search
+│           ├── lifecycle.py  # start / stop / init (backend-aware)
+│           ├── ops.py        # stats / doctor / search / browse / export / import
 │           ├── integrations.py  # add / remove (editor configs)
 │           ├── bench.py      # bench / demo
-│           ├── ingest.py     # import-github
-│           └── serve.py      # serve (MCP)
-├── tests/                    # 79 unit tests + e2e suite
-├── docs/                     # Architecture + build plans
+│           ├── ingest.py     # import-github / mine
+│           └── serve.py      # serve (MCP, backend-aware bootstrap)
+├── tests/                    # ~127 unit tests (SQLite default) + Actian e2e (gated)
+├── docs/                     # Architecture + build plans (hackathon-era)
 ├── .github/workflows/        # CI + PyPI release
-├── docker-compose.yml
+├── docker-compose.yml        # Actian container — only used under [actian]
 ├── pyproject.toml
 ├── RESULTS.md                # Submission deliverable: bench numbers + narrative
 └── CLAUDE.md
@@ -474,6 +505,16 @@ git push --tags
 ---
 
 ## Changelog
+
+### v0.5.0
+- **Pluggable storage backends.** SQLite + `sqlite-vec` + FTS5 is now the default — no Docker, no daemon, single-file DB at `~/.context8/context8.db`.
+- **Backward-compatible Actian backend.** `pip install context8[actian]` and `CONTEXT8_BACKEND=actian` keep the original hackathon stack working.
+- **Search engine refactor.** `search/engine.py` no longer imports a vendor SDK; it talks to a `StorageBackend` Protocol. RRF moved to `search/fusion.py` as pure Python.
+- **Backend-aware CLI.** `start`/`stop` print "no daemon needed" under SQLite; `init` runs schema migrations; `doctor` checks file integrity, WAL mode, vec0 + FTS5 modules.
+- **Concurrency.** WAL mode + 5s busy timeout for parallel MCP reads while ingest writes.
+- **vec0 dim guard.** Flipping `CONTEXT8_USE_CODE_MODEL` after init fails loudly with a `--force` hint instead of silently corrupting the DB.
+- **New tests.** `tests/test_storage_sqlite.py` (18 unit tests), `tests/test_e2e_sqlite.py` (full e2e on SQLite), `tests/test_search_filter.py` (filter translation).
+- **Fixed pre-existing test bug.** `FeedbackService(storage, embeddings)` arity mismatch in `test_e2e.py:281,300`.
 
 ### v0.4.0
 - **Container runtime**: Docker + Podman auto-detection with cached probing
@@ -515,5 +556,5 @@ git push --tags
 ---
 
 <p align="center">
-  <sub>Built with Actian VectorAI DB for the <a href="https://dorahacks.io/">Actian VectorAI DB Build Challenge</a></sub>
+  <sub>Originally built for the <a href="https://dorahacks.io/">Actian VectorAI DB Build Challenge</a>. Now SQLite-first; Actian remains a supported optional backend.</sub>
 </p>

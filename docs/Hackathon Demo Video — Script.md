@@ -1,3 +1,5 @@
+> _Historical hackathon artifact._ Context8 is now SQLite-first by default; the Actian backend is optional. See [README.md](../README.md) and [CLAUDE.md](../CLAUDE.md) for the current architecture.
+
 # Context8 — Hackathon Demo Video Script
 
 > **Format:** 1080p, ~125 seconds, mixed-media (lifestyle illustrations + UI mockups + terminal/code + diagram overlays). Voice: `af_heart` (Kokoro, warm female). Background music: synthesized ambient pad + sound-effect cues at key beats. Tagline locked: **"Context8 — The Next Generation of Problem Solving for AI."**
