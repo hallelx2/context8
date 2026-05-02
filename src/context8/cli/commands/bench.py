@@ -88,7 +88,7 @@ def bench(show_misses: bool, output: str | None):
     final = results[-1]
     delta = final.recall_at_3 - baseline.recall_at_3
     console.print(
-        f"\n  [bold]All Actian features + quality ranker:[/] "
+        f"\n  [bold]Hybrid + filter + ranker (full pipeline):[/] "
         f"Recall@3 lifted from [yellow]{baseline.recall_at_3:.0%}[/] "
         f"to [green]{final.recall_at_3:.0%}[/] "
         f"([bold green]+{delta:.0%}[/] absolute).\n"
@@ -114,7 +114,7 @@ def bench(show_misses: bool, output: str | None):
 
 @click.command()
 def demo():
-    """Run three scripted demos that show Actian's advanced features at work."""
+    """Run three scripted demos that show the hybrid retrieval stack at work."""
     console.print("\n[bold blue]Context8[/] Live Demo\n")
 
     ok, info = check_db_connection()
@@ -239,7 +239,8 @@ def demo():
     _show_top(js_only, "[3b] filter: language=javascript", "magenta")
 
     console.print(
-        "  [dim]→ Server-side FilterBuilder swaps the result set without re-embedding.[/]\n"
+        "  [dim]→ Metadata filters (SQL WHERE on SQLite, FilterBuilder on Actian) "
+        "swap the result set without re-embedding.[/]\n"
     )
 
     console.print(

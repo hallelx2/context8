@@ -5,7 +5,7 @@ from typing import Any
 
 from mcp.types import TextContent, Tool
 
-from ..config import COLLECTION_NAME, DB_URL
+from ..config import BACKEND, COLLECTION_NAME, DB_PATH, DB_URL
 from ..embeddings import EmbeddingService
 from ..feedback import FeedbackService
 from ..models import ResolutionRecord, SearchResult
@@ -19,23 +19,18 @@ _feedback_service: FeedbackService | None = None
 
 
 def get_services() -> tuple[EmbeddingService, StorageService, SearchEngine, FeedbackService]:
+    """Lazily build the four services the MCP tools share.
+
+    Backend bootstrap (container start, schema migrations, model warmup)
+    happens up front in :mod:`context8.cli.commands.serve._bootstrap`,
+    so by the time we get here the underlying DB is ready. We just open
+    the connection and delegate.
+    """
     global _embedding_service, _storage_service, _search_engine, _feedback_service
 
     if _embedding_service is None:
         _embedding_service = EmbeddingService()
     if _storage_service is None:
-        # Auto-start Docker if not running
-        try:
-            from ..docker import ensure_running
-
-            ok, msg = ensure_running(timeout_secs=30)
-            if ok:
-                import logging
-
-                logging.getLogger("context8.mcp").info(f"DB: {msg}")
-        except Exception:
-            pass  # Docker might already be running, or not available
-
         _storage_service = StorageService()
         _storage_service.initialize()
     if _search_engine is None:
@@ -423,11 +418,19 @@ def _handle_stats(_args: dict) -> list[TextContent]:
     lines = [
         "Context8 Knowledge Base:",
         f"  Records:       {total}",
-        f"  Collection:    {COLLECTION_NAME}",
-        f"  Endpoint:      {DB_URL}",
-        f"  Named vectors: {info.get('named_vector_count', 0)} ({', '.join(info.get('vectors', []))})",
-        f"  Sparse:        {'enabled' if info.get('sparse_supported') else 'disabled'}",
-        f"  Hybrid ready:  {'yes' if info.get('hybrid_enabled') else 'no'}",
-        f"  Status:        {status}",
+        f"  Backend:       {BACKEND}",
     ]
+    if BACKEND == "sqlite":
+        lines.append(f"  Database:      {DB_PATH}")
+    else:
+        lines.append(f"  Collection:    {COLLECTION_NAME}")
+        lines.append(f"  Endpoint:      {DB_URL}")
+    lines.extend(
+        [
+            f"  Named vectors: {info.get('named_vector_count', 0)} ({', '.join(info.get('vectors', []))})",
+            f"  Sparse:        {'enabled' if info.get('sparse_supported') else 'disabled'}",
+            f"  Hybrid ready:  {'yes' if info.get('hybrid_enabled') else 'no'}",
+            f"  Status:        {status}",
+        ]
+    )
     return [TextContent(type="text", text="\n".join(lines))]

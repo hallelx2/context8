@@ -7,8 +7,13 @@ from rich import box
 from rich.panel import Panel
 from rich.table import Table
 
-from ...config import COLLECTION_NAME, DB_URL, TEXT_EMBED_DIM
-from ..ui import check_actian_sdk, check_db_connection, console
+from ...config import BACKEND, COLLECTION_NAME, DB_PATH, DB_URL
+from ..ui import (
+    check_actian_sdk,
+    check_backend,
+    check_sqlite_vec,
+    console,
+)
 
 
 @click.command()
@@ -16,10 +21,13 @@ def stats():
     """Show Context8 knowledge base statistics."""
     console.print("\n[bold blue]Context8[/] Knowledge Base Stats\n")
 
-    ok, info = check_db_connection()
+    ok, info = check_backend()
     if not ok:
         console.print(f"[red]X Cannot connect:[/] {info}")
-        console.print("  Run [cyan]context8 start[/] first\n")
+        if BACKEND == "actian":
+            console.print("  Run [cyan]context8 start[/] first\n")
+        else:
+            console.print("  Run [cyan]context8 init[/] first\n")
         raise SystemExit(1)
 
     from ...storage import StorageService
@@ -29,8 +37,8 @@ def stats():
     try:
         total = storage.count()
         collection_info = storage.get_collection_info()
-    except Exception as e:
-        console.print(f"[red]X Error:[/] {e}")
+    except Exception as exc:
+        console.print(f"[red]X Error:[/] {exc}")
         console.print("  Run [cyan]context8 init[/] first\n")
         raise SystemExit(1)
 
@@ -39,14 +47,24 @@ def stats():
     table.add_column("Value", style="bold")
 
     table.add_row("Total records", str(total))
-    table.add_row("Collection", COLLECTION_NAME)
-    table.add_row("Database", info)
-    table.add_row("Endpoint", DB_URL)
-    table.add_row("Status", "[green]HEALTHY[/]")
+    table.add_row("Backend", BACKEND)
+    if BACKEND == "sqlite":
+        table.add_row("Database", f"SQLite ({DB_PATH})")
+    else:
+        table.add_row("Collection", COLLECTION_NAME)
+        table.add_row("Endpoint", DB_URL)
+    table.add_row("Status", info if ok else "[red]unhealthy[/]")
 
     if collection_info:
         table.add_row("Vector spaces", ", ".join(collection_info.get("vectors", [])))
-        table.add_row("Status", collection_info.get("status", "unknown"))
+        table.add_row(
+            "Sparse",
+            "enabled" if collection_info.get("sparse_supported") else "disabled",
+        )
+        table.add_row(
+            "Hybrid ready",
+            "yes" if collection_info.get("hybrid_enabled") else "no",
+        )
 
     console.print(table)
     console.print()
@@ -60,20 +78,174 @@ def doctor():
 
     checks: list[tuple[str, bool, str]] = []
 
-    from ...docker import detect_runtime
+    # Backend-specific checks
+    if BACKEND == "sqlite":
+        checks.extend(_doctor_sqlite())
+    elif BACKEND == "actian":
+        checks.extend(_doctor_actian())
+    else:
+        checks.append(("Backend", False, f"unknown CONTEXT8_BACKEND={BACKEND!r}"))
+
+    # Shared checks
+    try:
+        from sentence_transformers import SentenceTransformer  # noqa: F401
+
+        checks.append(("sentence-transformers", True, "installed"))
+    except ImportError:
+        checks.append(
+            (
+                "sentence-transformers",
+                False,
+                "not installed — pip install sentence-transformers",
+            )
+        )
+
+    try:
+        import mcp  # noqa: F401
+
+        checks.append(("MCP SDK", True, "installed"))
+    except ImportError:
+        checks.append(("MCP SDK", False, "not installed — pip install mcp"))
+
+    from ...agents import list_agents_status
+
+    agent_statuses = list_agents_status()
+    configured_agents = [a for a in agent_statuses if a["configured"]]
+    if configured_agents:
+        names = ", ".join(a["name"] for a in configured_agents)
+        checks.append(("Agent integrations", True, names))
+    else:
+        checks.append(("Agent integrations", False, "none — run: context8 add claude-code"))
+
+    table = Table(box=box.ROUNDED)
+    table.add_column("Check", style="bold")
+    table.add_column("Status", width=6)
+    table.add_column("Details")
+
+    for name, ok, detail in checks:
+        status = "[green]OK[/]" if ok else "[red]X[/]"
+        table.add_row(name, status, detail)
+
+    console.print(table)
+
+    all_ok = all(ok for _, ok, _ in checks)
+    if all_ok:
+        console.print("\n[green bold]All checks passed![/] Context8 is ready.\n")
+    else:
+        failed = [name for name, ok, _ in checks if not ok]
+        console.print(f"\n[yellow]Some checks failed:[/] {', '.join(failed)}")
+        console.print("Fix the issues above, then run [cyan]context8 doctor[/] again.\n")
+
+
+def _doctor_sqlite() -> list[tuple[str, bool, str]]:
+    """SQLite-specific doctor checks."""
+    checks: list[tuple[str, bool, str]] = []
+
+    sqlite_vec_ok, sqlite_vec_info = check_sqlite_vec()
+    checks.append(("sqlite-vec", sqlite_vec_ok, sqlite_vec_info))
+
+    backend_ok, backend_info = check_backend()
+    checks.append(("Backend connectivity", backend_ok, backend_info))
+
+    if not backend_ok:
+        return checks
+
+    try:
+        from ...storage import StorageService
+
+        storage = StorageService()
+        col_exists = storage.collection_exists()
+        total = storage.count() if col_exists else 0
+        checks.append(
+            (
+                "Schema",
+                col_exists,
+                f"records table present ({total} rows)"
+                if col_exists
+                else "tables missing — run: context8 init",
+            )
+        )
+
+        if col_exists:
+            info = storage.get_collection_info() or {}
+            named_count = info.get("named_vector_count", 0)
+            sparse = info.get("sparse_supported", False)
+            hybrid = info.get("hybrid_enabled", False)
+
+            checks.append(
+                (
+                    "Named vectors (3)",
+                    named_count >= 3,
+                    f"{named_count} found: {', '.join(info.get('vectors', []))}"
+                    if named_count
+                    else "vec0 tables missing",
+                )
+            )
+            checks.append(
+                (
+                    "Sparse (FTS5)",
+                    sparse,
+                    "fts_records virtual table present"
+                    if sparse
+                    else "FTS5 unavailable",
+                )
+            )
+            checks.append(
+                (
+                    "Hybrid fusion ready",
+                    hybrid,
+                    "dense + sparse + RRF available"
+                    if hybrid
+                    else "missing components — see above",
+                )
+            )
+
+            # WAL pragma check.
+            try:
+                mode = storage.backend.conn.execute(  # type: ignore[attr-defined]
+                    "PRAGMA journal_mode"
+                ).fetchone()[0]
+                checks.append(
+                    (
+                        "WAL mode",
+                        mode == "wal",
+                        f"journal_mode={mode}",
+                    )
+                )
+            except Exception as exc:
+                checks.append(("WAL mode", False, f"could not probe: {exc}"))
+
+            # Filter probe — same idea as the Actian doctor's, but
+            # backend-agnostic now.
+            try:
+                from ...storage.backend import SearchFilter
+
+                hits = storage.scroll(SearchFilter(language="python"), limit=1)
+                checks.append(("Filtered scroll", True, f"returned {len(hits[0])} record(s)"))
+            except Exception as exc:
+                checks.append(("Filtered scroll", False, f"failed — {exc}"))
+
+        storage.close()
+    except Exception as exc:
+        checks.append(("Schema", False, str(exc)))
+
+    return checks
+
+
+def _doctor_actian() -> list[tuple[str, bool, str]]:
+    """Actian-specific doctor checks (legacy hackathon path)."""
+    checks: list[tuple[str, bool, str]] = []
+
+    from ...docker import detect_runtime, is_container_running
 
     runtime = detect_runtime()
     if runtime is None:
-        checks.append(
-            (
-                "Container runtime",
-                False,
-                "not found — install Docker or Podman",
-            )
-        )
+        checks.append(("Container runtime", False, "not found — install Docker or Podman"))
     else:
         try:
-            result = subprocess.run([runtime, "info"], capture_output=True, text=True, timeout=5)
+            result = subprocess.run(
+                [runtime, "info"], capture_output=True, text=True, timeout=5
+            )
             running = result.returncode == 0
             checks.append(
                 (
@@ -86,8 +258,6 @@ def doctor():
             checks.append((f"Container runtime ({runtime})", False, "probe failed"))
 
     try:
-        from ...docker import is_container_running
-
         container_ok = is_container_running()
         checks.append(
             (
@@ -102,12 +272,15 @@ def doctor():
     sdk_ok, sdk_info = check_actian_sdk()
     checks.append(("actian-vectorai SDK", sdk_ok, sdk_info))
 
-    db_ok, db_info = check_db_connection()
-    checks.append(("Database connection", db_ok, db_info if db_ok else f"failed — {db_info}"))
+    db_ok, db_info = check_backend()
+    checks.append(
+        ("Database connection", db_ok, db_info if db_ok else f"failed — {db_info}")
+    )
 
     if db_ok:
         try:
             from ...storage import StorageService
+            from ...storage.backend import SearchFilter
 
             storage = StorageService()
             col_exists = storage.collection_exists()
@@ -134,7 +307,7 @@ def doctor():
                         named_count >= 3,
                         f"{named_count} found: {', '.join(col_info.get('vectors', []))}"
                         if named_count
-                        else "not detected — collection fell back to single-vector mode",
+                        else "not detected — fell back to single-vector mode",
                     )
                 )
                 checks.append(
@@ -152,77 +325,24 @@ def doctor():
                         hybrid,
                         "dense + sparse + RRF fusion available"
                         if hybrid
-                        else "missing components — see above",
+                        else "missing components",
                     )
                 )
 
+                # Filter probe — uses the Protocol's scroll, not raw SDK.
                 try:
-                    import actian_vectorai as _av
-
-                    _filter = _av.FilterBuilder().must(_av.Field("language").eq("python")).build()
-                    _zero = [0.0] * TEXT_EMBED_DIM
-                    storage.client.points.search(
-                        COLLECTION_NAME,
-                        vector=_zero,
-                        using="problem",
-                        filter=_filter,
-                        limit=1,
-                        with_payload=False,
-                    )
-                    checks.append(("Filtered search", True, "FilterBuilder query succeeded"))
-                except Exception as e:
-                    checks.append(("Filtered search", False, f"failed — {e}"))
+                    storage.scroll(SearchFilter(language="python"), limit=1)
+                    checks.append(("Filtered search", True, "scroll filter succeeded"))
+                except Exception as exc:
+                    checks.append(("Filtered search", False, f"failed — {exc}"))
 
             storage.close()
-        except Exception as e:
-            checks.append(("Collection", False, str(e)))
+        except Exception as exc:
+            checks.append(("Collection", False, str(exc)))
     else:
         checks.append(("Collection", False, "skipped (no DB connection)"))
 
-    try:
-        from sentence_transformers import SentenceTransformer  # noqa: F401
-
-        checks.append(("sentence-transformers", True, "installed"))
-    except ImportError:
-        checks.append(
-            ("sentence-transformers", False, "not installed — pip install sentence-transformers")
-        )
-
-    try:
-        import mcp  # noqa: F401
-
-        checks.append(("MCP SDK", True, "installed"))
-    except ImportError:
-        checks.append(("MCP SDK", False, "not installed — pip install mcp"))
-
-    from ...agents import list_agents_status
-
-    agent_statuses = list_agents_status()
-    configured_agents = [a for a in agent_statuses if a["configured"]]
-    if configured_agents:
-        names = ", ".join(a["name"] for a in configured_agents)
-        checks.append(("Agent integrations", True, names))
-    else:
-        checks.append(("Agent integrations", False, "none — run: context8 add claude"))
-
-    table = Table(box=box.ROUNDED)
-    table.add_column("Check", style="bold")
-    table.add_column("Status", width=6)
-    table.add_column("Details")
-
-    for name, ok, detail in checks:
-        status = "[green]OK[/]" if ok else "[red]X[/]"
-        table.add_row(name, status, detail)
-
-    console.print(table)
-
-    all_ok = all(ok for _, ok, _ in checks)
-    if all_ok:
-        console.print("\n[green bold]All checks passed![/] Context8 is ready.\n")
-    else:
-        failed = [name for name, ok, _ in checks if not ok]
-        console.print(f"\n[yellow]Some checks failed:[/] {', '.join(failed)}")
-        console.print("Fix the issues above, then run [cyan]context8 doctor[/] again.\n")
+    return checks
 
 
 @click.command(name="search")
@@ -235,7 +355,7 @@ def search_cmd(query: str, language: str | None, framework: str | None, limit: i
     """Search Context8 from the command line."""
     console.print(f"\n[bold blue]Context8[/] Searching: [italic]{query}[/]\n")
 
-    ok, info = check_db_connection()
+    ok, info = check_backend()
     if not ok:
         console.print(f"[red]X Cannot connect:[/] {info}\n")
         raise SystemExit(1)
@@ -353,7 +473,7 @@ def browse(
     label = ", ".join(filters) if filters else "all records"
     console.print(f"\n[bold blue]Context8[/] Browsing: [italic]{label}[/]\n")
 
-    ok, info = check_db_connection()
+    ok, info = check_backend()
     if not ok:
         console.print(f"[red]X Cannot connect:[/] {info}\n")
         raise SystemExit(1)
@@ -408,7 +528,7 @@ def export_cmd(output: str):
 
     console.print(f"\n[bold blue]Context8[/] Exporting to [cyan]{output}[/]\n")
 
-    ok, info = check_db_connection()
+    ok, info = check_backend()
     if not ok:
         console.print(f"[red]X Cannot connect:[/] {info}\n")
         raise SystemExit(1)
@@ -431,7 +551,7 @@ def import_cmd(file: str):
 
     console.print(f"\n[bold blue]Context8[/] Importing from [cyan]{file}[/]\n")
 
-    ok, info = check_db_connection()
+    ok, info = check_backend()
     if not ok:
         console.print(f"[red]X Cannot connect:[/] {info}\n")
         raise SystemExit(1)

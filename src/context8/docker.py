@@ -1,6 +1,10 @@
 """Container runtime management for Context8 — start/stop/check the Actian
 VectorAI DB container.
 
+Only used when ``CONTEXT8_BACKEND=actian``. Functions in this module
+short-circuit (return success-shaped values) under the default SQLite
+backend so they're safe to call unconditionally from older code paths.
+
 Generates a compose file on demand into ~/.context8/ so it works whether
 installed via pip, uv, or from source. Supports both Docker and Podman —
 the runtime is detected automatically.
@@ -13,7 +17,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from .config import DB_URL, _home
+from .config import BACKEND, DB_URL, _home
 
 logger = logging.getLogger("context8.docker")
 
@@ -152,6 +156,9 @@ def run_compose(args: list[str]) -> subprocess.CompletedProcess:
 
 def is_container_running() -> bool:
     """Check if the context8_db container is running under docker or podman."""
+    if BACKEND != "actian":
+        # SQLite has no container; treat as "running" so callers stop probing.
+        return True
     runtime = detect_runtime()
     if runtime is None:
         return False
@@ -170,8 +177,11 @@ def is_container_running() -> bool:
 def ensure_running(timeout_secs: int = 30) -> tuple[bool, str]:
     """Start the container if not running, wait for it to be healthy.
 
-    Returns (success, message).
+    Returns (success, message). Short-circuits to success when the
+    SQLite backend is active — there is no daemon to start.
     """
+    if BACKEND != "actian":
+        return True, "skipped — backend is sqlite"
     if is_container_running():
         return True, "already running"
 
@@ -198,6 +208,8 @@ def ensure_running(timeout_secs: int = 30) -> tuple[bool, str]:
 
 def stop_container() -> tuple[bool, str]:
     """Stop the container."""
+    if BACKEND != "actian":
+        return True, "skipped — backend is sqlite (no daemon to stop)"
     result = run_compose(["down"])
     if result.returncode == 0:
         return True, "stopped"
