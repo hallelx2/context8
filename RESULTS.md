@@ -2,7 +2,7 @@
 
 > Originally written as the Actian VectorAI DB Build Challenge submission deliverable.
 > Context8 is now SQLite-first by default (`pip install context8`); the Actian backend
-> remains a supported optional install (`pip install context8[actian]` +
+> remains a supported optional install (install the GitHub wheel separately, then set
 > `CONTEXT8_BACKEND=actian`). Run `context8 bench` against either backend to
 > reproduce the numbers below.
 
@@ -29,7 +29,7 @@ context8 bench                                         # Print Recall@K table
 context8 demo                                          # 4 scripted scenarios
 
 # Actian backend (legacy hackathon stack)
-pip install "context8[actian]"
+pip install "actian-vectorai @ https://github.com/hackmamba-io/actian-vectorAI-db-beta/raw/main/actian_vectorai-0.1.0b2-py3-none-any.whl"
 docker compose up -d
 CONTEXT8_BACKEND=actian context8 init --seed
 CONTEXT8_BACKEND=actian context8 bench

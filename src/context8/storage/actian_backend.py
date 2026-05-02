@@ -1,9 +1,9 @@
 """Actian VectorAI DB storage backend (legacy, hackathon-era).
 
-Optional — install via ``pip install context8[actian]`` and select with
-``CONTEXT8_BACKEND=actian``. Preserved so the original Actian hackathon
-submission can still be reproduced from this repo without a separate
-branch.
+Optional — install the ``actian-vectorai`` wheel from GitHub (see
+``ACTIAN_INSTALL_HINT``) and select with ``CONTEXT8_BACKEND=actian``.
+Preserved so the original Actian hackathon submission can still be
+reproduced from this repo without a separate branch.
 
 The class wraps the same Actian gRPC SDK calls the original
 ``storage.py`` made, plus the ``search_dense`` / ``search_sparse`` /
@@ -27,12 +27,12 @@ logger = logging.getLogger("context8.storage.actian")
 
 
 ACTIAN_INSTALL_HINT = (
-    "actian-vectorai is not installed. Install it with:\n\n"
-    "  pip install context8[actian]\n\n"
-    "or directly:\n"
+    "actian-vectorai is not installed. The SDK isn't on PyPI, so install the\n"
+    "GitHub wheel directly:\n\n"
     '  pip install "actian-vectorai @ '
     "https://github.com/hackmamba-io/actian-vectorAI-db-beta/raw/main/"
-    'actian_vectorai-0.1.0b2-py3-none-any.whl"\n'
+    'actian_vectorai-0.1.0b2-py3-none-any.whl"\n\n'
+    "Then set CONTEXT8_BACKEND=actian.\n"
 )
 
 

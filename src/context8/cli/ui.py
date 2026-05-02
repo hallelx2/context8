@@ -58,7 +58,12 @@ def _check_actian() -> tuple[bool, str]:
     try:
         from actian_vectorai import VectorAIClient
     except ImportError:
-        return False, ("actian-vectorai SDK not installed — run:\n    pip install context8[actian]")
+        return False, (
+            "actian-vectorai SDK not installed — install the GitHub wheel:\n"
+            '    pip install "actian-vectorai @ '
+            "https://github.com/hackmamba-io/actian-vectorAI-db-beta/raw/main/"
+            'actian_vectorai-0.1.0b2-py3-none-any.whl"'
+        )
     try:
         with VectorAIClient(DB_URL, timeout=5.0) as client:
             info = client.health_check()
@@ -76,7 +81,9 @@ def check_actian_sdk() -> tuple[bool, str]:
 
         return True, "installed"
     except ImportError:
-        return False, "not installed — pip install context8[actian]"
+        return False, (
+            "not installed — pip install the GitHub wheel (see docstring on ACTIAN_INSTALL_HINT)"
+        )
 
 
 def check_sqlite_vec() -> tuple[bool, str]:

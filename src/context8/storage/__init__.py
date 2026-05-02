@@ -1,8 +1,9 @@
 """Pluggable storage for Context8.
 
 Default backend is SQLite + sqlite-vec + FTS5 (zero infrastructure).
-Optional Actian backend lives behind ``pip install context8[actian]``
-and ``CONTEXT8_BACKEND=actian``.
+Optional Actian backend lives behind installing the ``actian-vectorai``
+wheel from GitHub directly and setting ``CONTEXT8_BACKEND=actian``
+(see ``ACTIAN_INSTALL_HINT`` for the exact command).
 
 External callers should only import :class:`StorageService`, the
 backend Protocol types, and ``SearchFilter`` / ``ScoredHit`` from this

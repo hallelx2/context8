@@ -14,8 +14,8 @@ def _env_truthy(name: str, default: str = "") -> bool:
 # ---------------------------------------------------------------------------
 # Default is SQLite + sqlite-vec + FTS5 — zero infrastructure, single file
 # at ~/.context8/context8.db. Set CONTEXT8_BACKEND=actian to use the
-# original hackathon-era gRPC stack (requires `pip install context8[actian]`
-# and a running Docker container).
+# original hackathon-era gRPC stack (install the actian-vectorai wheel from
+# GitHub separately, then start the Docker container).
 BACKEND = os.environ.get("CONTEXT8_BACKEND", "sqlite").strip().lower()
 
 

@@ -4,12 +4,12 @@
 
 Context8 is an MCP server that stores and retrieves coding problem-solution pairs in a local SQLite database (with sqlite-vec for vector search and FTS5 for BM25 keyword search). It complements Context7 (documentation search) by covering the long tail of uncommon errors, workarounds, and agent-discovered fixes that don't appear in official documentation.
 
-The original hackathon submission ran on Actian VectorAI DB over gRPC. That backend is still supported behind `pip install context8[actian]` + `CONTEXT8_BACKEND=actian`, but it is no longer the default.
+The original hackathon submission ran on Actian VectorAI DB over gRPC. That backend is still supported — install the SDK wheel from GitHub alongside `context8` and set `CONTEXT8_BACKEND=actian` — but it is no longer the default. (PyPI doesn't allow URL-pinned extras, so we can't ship an `[actian]` extra; the wheel install stays manual until the SDK lands on PyPI.)
 
 ## Tech Stack
 
 - **Default storage:** SQLite (stdlib) + [sqlite-vec](https://github.com/asg017/sqlite-vec) for vec0 KNN + native FTS5 for BM25. Single file at `~/.context8/context8.db`.
-- **Optional storage:** Actian VectorAI DB over gRPC (`pip install context8[actian]`, `CONTEXT8_BACKEND=actian`).
+- **Optional storage:** Actian VectorAI DB over gRPC. Install: `pip install "actian-vectorai @ https://github.com/hackmamba-io/actian-vectorAI-db-beta/raw/main/actian_vectorai-0.1.0b2-py3-none-any.whl"` then set `CONTEXT8_BACKEND=actian`.
 - **Language:** Python 3.10+
 - **Embedding models:** `sentence-transformers/all-MiniLM-L6-v2` (384d default); `microsoft/codebert-base` (768d, opt-in via `CONTEXT8_USE_CODE_MODEL=1`).
 - **Protocol:** MCP (Model Context Protocol) via stdio.
@@ -120,7 +120,7 @@ context8 bench                          # ablate features over the 27-query grou
 pytest tests/ -v                        # ~127 tests (Actian e2e auto-skips)
 
 # Optional Actian backend
-pip install "context8[actian]"
+pip install "actian-vectorai @ https://github.com/hackmamba-io/actian-vectorAI-db-beta/raw/main/actian_vectorai-0.1.0b2-py3-none-any.whl"
 docker compose up -d
 CONTEXT8_BACKEND=actian context8 init --seed
 CONTEXT8_BACKEND=actian context8 doctor

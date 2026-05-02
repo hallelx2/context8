@@ -10,7 +10,7 @@ without any infrastructure.
 
 To run these locally:
 
-    pip install context8[actian]
+    pip install "actian-vectorai @ https://github.com/hackmamba-io/actian-vectorAI-db-beta/raw/main/actian_vectorai-0.1.0b2-py3-none-any.whl"
     docker compose up -d
     CONTEXT8_BACKEND=actian pytest tests/test_e2e.py -v
 """

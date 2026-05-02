@@ -73,16 +73,20 @@ The DB lives at `~/.context8/context8.db` — a single SQLite file with three na
 
 ### Optional: Actian VectorAI DB backend
 
-The original hackathon submission used Actian VectorAI DB over gRPC. That stack is still supported as an optional backend:
+The original hackathon submission used Actian VectorAI DB over gRPC. That stack is still supported as an optional backend. The Actian SDK isn't on PyPI, so install the GitHub wheel directly alongside `context8`:
 
 ```bash
-pip install "context8[actian]"
+pip install context8 \
+  "actian-vectorai @ https://github.com/hackmamba-io/actian-vectorAI-db-beta/raw/main/actian_vectorai-0.1.0b2-py3-none-any.whl"
+
 docker compose up -d                       # starts the Actian container
 CONTEXT8_BACKEND=actian context8 init --seed
 CONTEXT8_BACKEND=actian context8 doctor
 ```
 
 Set `CONTEXT8_BACKEND=actian` (or leave unset for the default `sqlite`). The same MCP tools, search semantics, and CLI commands work across both backends.
+
+> Why two install lines? PyPI doesn't allow published packages to declare URL-pinned dependencies, so we can't ship an `[actian]` extra that pulls the wheel automatically. Once the SDK lands on PyPI, this collapses to a single `pip install context8[actian]`.
 
 ---
 
@@ -377,7 +381,7 @@ Filtered scroll           ✓  returned N record(s)
 |---|---|---|
 | Vector Storage (default) | [sqlite-vec](https://github.com/asg017/sqlite-vec) | Local KNN over named vector spaces in stock SQLite |
 | Lexical Storage (default) | SQLite [FTS5](https://www.sqlite.org/fts5.html) | Native BM25 index, no extra dependency |
-| Vector Storage (optional) | [Actian VectorAI DB](https://github.com/hackmamba-io/actian-vectorAI-db-beta) | Hackathon-era backend behind `pip install context8[actian]` |
+| Vector Storage (optional) | [Actian VectorAI DB](https://github.com/hackmamba-io/actian-vectorAI-db-beta) | Hackathon-era backend; install the GitHub wheel separately and set `CONTEXT8_BACKEND=actian` |
 | Dense Embeddings | `sentence-transformers/all-MiniLM-L6-v2` | 384d text vectors (problems, solutions) |
 | Code Embeddings | `microsoft/codebert-base` | 768d code-aware vectors (opt-in via `CONTEXT8_USE_CODE_MODEL=1`) |
 | MCP Server | Python `mcp` SDK | stdio transport to agents |
@@ -427,8 +431,8 @@ context8 doctor
 # Run the full test suite (~125 tests, all run against SQLite, no infrastructure)
 pytest tests/ -v
 
-# Run the legacy Actian e2e suite — install the extra and start the container first:
-uv pip install -e ".[actian]"
+# Run the legacy Actian e2e suite — install the GitHub wheel and start the container first:
+uv pip install "actian-vectorai @ https://github.com/hackmamba-io/actian-vectorAI-db-beta/raw/main/actian_vectorai-0.1.0b2-py3-none-any.whl"
 docker compose up -d
 CONTEXT8_BACKEND=actian pytest tests/ -v
 
@@ -523,7 +527,7 @@ The version jump from 0.x to 1.0 marks two things: (1) the default install is fi
 **What changed in this release** (full rollup from 0.4.0):
 
 - **Pluggable storage backends.** SQLite + `sqlite-vec` + FTS5 is the new default — no Docker, no daemon, single-file DB at `~/.context8/context8.db`.
-- **Backward-compatible Actian backend.** `pip install context8[actian]` and `CONTEXT8_BACKEND=actian` keep the original hackathon stack working.
+- **Backward-compatible Actian backend.** Install the SDK wheel from GitHub alongside `context8` and set `CONTEXT8_BACKEND=actian` to keep using the original hackathon stack. (PyPI doesn't allow URL-pinned extras, so the install is two lines instead of one.)
 - **Search engine refactor.** `search/engine.py` no longer imports a vendor SDK; it talks to a `StorageBackend` Protocol. RRF moved to `search/fusion.py` as pure Python.
 - **Backend-aware CLI.** `start`/`stop` print "no daemon needed" under SQLite; `init` runs schema migrations; `doctor` checks file integrity, WAL mode, vec0 + FTS5 modules.
 - **Concurrency.** WAL mode + 5s busy timeout for parallel MCP reads while ingest writes.
@@ -541,7 +545,7 @@ context8 init                              # creates fresh SQLite DB
 context8 import backup.json                # re-embeds and imports
 ```
 
-If you want to keep using Actian: `pip install -U "context8[actian]"` and set `CONTEXT8_BACKEND=actian`. No other changes required.
+If you want to keep using Actian: `pip install -U context8 "actian-vectorai @ https://github.com/hackmamba-io/actian-vectorAI-db-beta/raw/main/actian_vectorai-0.1.0b2-py3-none-any.whl"` and set `CONTEXT8_BACKEND=actian`. No other changes required.
 
 ### v0.4.0
 - **Container runtime**: Docker + Podman auto-detection with cached probing
