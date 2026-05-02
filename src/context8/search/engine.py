@@ -1,9 +1,17 @@
+"""Hybrid search engine — backend-agnostic.
+
+The engine assembles dense + sparse result lists, fuses them with RRF,
+hydrates :class:`ResolutionRecord` payloads, applies the quality
+re-ranker, and returns :class:`SearchResult` instances. It never
+imports a vendor SDK; everything goes through the
+:class:`StorageBackend` Protocol.
+"""
+
 from __future__ import annotations
 
 import logging
 
 from ..config import (
-    COLLECTION_NAME,
     DEDUP_THRESHOLD,
     DEFAULT_CODE_WEIGHT,
     DEFAULT_DENSE_WEIGHT,
@@ -12,9 +20,10 @@ from ..config import (
 )
 from ..embeddings import EmbeddingService
 from ..models import ResolutionRecord, SearchResult
-from ..storage import StorageService, _require_actian
+from ..storage import SearchFilter, StorageService
 from .analyzer import QueryAnalyzer
 from .attribution import AttributionTracker
+from .fusion import reciprocal_rank_fusion
 from .ranking import QualityRanker
 
 logger = logging.getLogger("context8.search")
@@ -32,11 +41,17 @@ class SearchEngine:
     ):
         self.storage = storage
         self.embeddings = embeddings
+        # Actian sparse search needs the embedding service to tokenize.
+        # Idempotent for SQLite (no-op).
+        self.storage.attach_embeddings(embeddings)
         self.ranker = ranker or QualityRanker()
         self.dense_weight = dense_weight
         self.code_weight = code_weight
         self.sparse_weight = sparse_weight
 
+    # ------------------------------------------------------------------
+    # Main hybrid search
+    # ------------------------------------------------------------------
     def search(
         self,
         query: str,
@@ -54,10 +69,9 @@ class SearchEngine:
         use_filter: bool = True,
         apply_quality_boost: bool = True,
     ) -> list[SearchResult]:
-        av = _require_actian()
         query_vectors = self.embeddings.embed_query(query, code_context)
 
-        search_filter = (
+        sf = (
             self._build_filter(
                 language=language,
                 framework=framework,
@@ -75,41 +89,30 @@ class SearchEngine:
         tracker = AttributionTracker()
 
         if use_problem_vector:
-            problem_results = self._search_named(
-                "problem",
-                query_vectors["problem"],
-                search_filter,
-                prefetch_limit,
+            problem_hits = self.storage.search_dense(
+                "problem", query_vectors["problem"], sf, prefetch_limit
             )
-            if problem_results:
-                result_lists.append(problem_results)
+            if problem_hits:
+                result_lists.append(problem_hits)
                 fusion_weights.append(weights["dense"])
-                tracker.record("problem", problem_results)
+                tracker.record("problem", problem_hits)
 
         if use_code_vector:
-            code_results = self._search_named(
-                "code_context",
-                query_vectors["code_context"],
-                search_filter,
-                prefetch_limit,
-                strict=False,
+            code_hits = self.storage.search_dense(
+                "code_context", query_vectors["code_context"], sf, prefetch_limit
             )
-            if code_results:
-                result_lists.append(code_results)
+            if code_hits:
+                result_lists.append(code_hits)
                 fusion_weights.append(weights["code"])
-                tracker.record("code_context", code_results)
+                tracker.record("code_context", code_hits)
 
-        if use_sparse and self.storage.sparse_supported and query_vectors.get("keywords_indices"):
-            sparse_results = self._search_sparse(
-                query_vectors["keywords_values"],
-                query_vectors["keywords_indices"],
-                search_filter,
-                prefetch_limit,
-            )
-            if sparse_results:
-                result_lists.append(sparse_results)
+        if use_sparse and self.storage.sparse_supported:
+            sparse_query = f"{query} {code_context}".strip()
+            sparse_hits = self.storage.search_sparse(sparse_query, sf, prefetch_limit)
+            if sparse_hits:
+                result_lists.append(sparse_hits)
                 fusion_weights.append(weights["sparse"])
-                tracker.record("keywords", sparse_results)
+                tracker.record("keywords", sparse_hits)
 
         if not result_lists:
             return []
@@ -118,30 +121,29 @@ class SearchEngine:
             fused = result_lists[0][:limit]
             base_match_type = tracker.strategies_used[0]
         else:
-            fused = av.reciprocal_rank_fusion(
+            fused = reciprocal_rank_fusion(
                 result_lists,
-                limit=limit,
-                ranking_constant_k=60,
+                k=60,
                 weights=fusion_weights,
+                limit=limit,
             )
             base_match_type = "hybrid"
 
         results: list[SearchResult] = []
-        for r in fused:
-            if r.score < score_threshold:
+        for hit in fused:
+            if hit.score < score_threshold:
                 continue
-            try:
-                record = ResolutionRecord.from_payload(str(r.id), r.payload)
-            except Exception as e:
-                logger.warning(f"Failed to parse result {r.id}: {e}")
+            record = hit.record or self.storage.get_record(hit.record_id)
+            if record is None:
+                logger.warning(f"could not hydrate record {hit.record_id}")
                 continue
             results.append(
                 SearchResult(
                     record=record,
-                    score=float(r.score),
-                    raw_score=float(r.score),
+                    score=float(hit.score),
+                    raw_score=float(hit.score),
                     match_type=base_match_type,
-                    attribution=tracker.build_for(str(r.id)),
+                    attribution=tracker.build_for(hit.record_id),
                 )
             )
 
@@ -150,6 +152,9 @@ class SearchEngine:
 
         return results
 
+    # ------------------------------------------------------------------
+    # Solution-vector search (find records by *approach*)
+    # ------------------------------------------------------------------
     def search_by_solution(
         self,
         approach: str,
@@ -157,66 +162,47 @@ class SearchEngine:
         limit: int = 5,
         apply_quality_boost: bool = True,
     ) -> list[SearchResult]:
-        av = _require_actian()
-        VectorAIError = av.exceptions.VectorAIError
-
         query_vec = self.embeddings.embed_text(approach)
-        search_filter = self._build_filter(language=language)
+        sf = self._build_filter(language=language)
 
-        try:
-            results = self.storage.client.points.search(
-                COLLECTION_NAME,
-                vector=query_vec,
-                using="solution",
-                filter=search_filter,
-                limit=limit,
-                with_payload=True,
+        hits = self.storage.search_dense("solution", query_vec, sf, limit)
+        out: list[SearchResult] = []
+        for hit in hits:
+            record = hit.record or self.storage.get_record(hit.record_id)
+            if record is None:
+                continue
+            out.append(
+                SearchResult(
+                    record=record,
+                    score=float(hit.score),
+                    raw_score=float(hit.score),
+                    match_type="solution",
+                )
             )
-        except VectorAIError as e:
-            logger.warning(f"Solution vector search failed: {e}")
-            return []
-
-        out = [
-            SearchResult(
-                record=ResolutionRecord.from_payload(str(r.id), r.payload),
-                score=float(r.score),
-                raw_score=float(r.score),
-                match_type="solution",
-            )
-            for r in results
-        ]
         if apply_quality_boost:
             out = self.ranker.boost(out)
         return out
 
+    # ------------------------------------------------------------------
+    # Dedup helpers — exposed via mcp/tools.py:_handle_log
+    # ------------------------------------------------------------------
     def find_duplicate(
         self,
         problem_text: str,
         threshold: float = DEDUP_THRESHOLD,
     ) -> SearchResult | None:
-        av = _require_actian()
-        VectorAIError = av.exceptions.VectorAIError
-
         query_vec = self.embeddings.embed_text(problem_text)
-
-        try:
-            results = self.storage.client.points.search(
-                COLLECTION_NAME,
-                vector=query_vec,
-                using="problem",
-                limit=1,
-                with_payload=True,
-            )
-        except VectorAIError:
+        hits = self.storage.search_dense("problem", query_vec, None, 1)
+        if not hits:
             return None
-
-        if not results:
-            return None
-        top = results[0]
+        top = hits[0]
         if top.score < threshold:
             return None
+        record = top.record or self.storage.get_record(top.record_id)
+        if record is None:
+            return None
         return SearchResult(
-            record=ResolutionRecord.from_payload(str(top.id), top.payload),
+            record=record,
             score=float(top.score),
             raw_score=float(top.score),
             match_type="dense",
@@ -230,23 +216,17 @@ class SearchEngine:
         variant_threshold: float = 0.85,
         solution_diff_threshold: float = 0.7,
     ) -> tuple[str, SearchResult | None]:
-        """Check if a problem is a duplicate or a solution variant.
-
-        Returns:
-            ("duplicate", result) — same problem AND same solution
-            ("variant", result)   — same problem, DIFFERENT solution
-            ("new", None)         — genuinely new problem
-        """
+        """Same problem AND same solution → ``"duplicate"``;
+        same problem but different solution → ``"variant"``;
+        otherwise ``"new"``."""
         existing = self.find_duplicate(problem_text, threshold=variant_threshold)
         if existing is None:
             return "new", None
 
         if existing.score >= exact_threshold:
-            # Problem matches closely — check if solution is also similar
             existing_sol_vec = self.embeddings.embed_text(existing.record.solution_text)
             new_sol_vec = self.embeddings.embed_text(solution_text)
 
-            # Cosine similarity between solutions
             import math
 
             dot = sum(a * b for a, b in zip(existing_sol_vec, new_sol_vec))
@@ -255,85 +235,34 @@ class SearchEngine:
             sol_sim = dot / (norm_a * norm_b) if norm_a and norm_b else 0.0
 
             if sol_sim >= solution_diff_threshold:
-                return "duplicate", existing  # Same problem, same solution
-            else:
-                return "variant", existing  # Same problem, different solution
+                return "duplicate", existing
+            return "variant", existing
 
         return "new", None
 
-    def _search_named(
-        self,
-        vector_name: str,
-        vector: list[float],
-        search_filter,
-        limit: int,
-        strict: bool = True,
-    ) -> list:
-        av = _require_actian()
-        VectorAIError = av.exceptions.VectorAIError
-
-        try:
-            return self.storage.client.points.search(
-                COLLECTION_NAME,
-                vector=vector,
-                using=vector_name,
-                filter=search_filter,
-                limit=limit,
-                with_payload=True,
-            )
-        except VectorAIError as e:
-            if strict:
-                logger.warning(f"{vector_name} vector search failed: {e}")
-            else:
-                logger.debug(f"{vector_name} vector search not available: {e}")
-            return []
-
-    def _search_sparse(
-        self,
-        values: list[float],
-        indices: list[int],
-        search_filter,
-        limit: int,
-    ) -> list:
-        av = _require_actian()
-        VectorAIError = av.exceptions.VectorAIError
-
-        try:
-            return self.storage.client.points.search(
-                COLLECTION_NAME,
-                vector=values,
-                using="keywords",
-                sparse_indices=indices,
-                filter=search_filter,
-                limit=limit,
-                with_payload=True,
-            )
-        except VectorAIError as e:
-            logger.debug(f"Sparse search not available: {e}")
-            return []
-
+    # ------------------------------------------------------------------
+    # Filter construction
+    # ------------------------------------------------------------------
+    @staticmethod
     def _build_filter(
-        self,
         language: str | None = None,
         framework: str | None = None,
         error_type: str | None = None,
         resolved_only: bool = False,
-    ):
-        av = _require_actian()
-        conditions = []
-        if language:
-            conditions.append(av.Field("language").eq(language.lower()))
-        if framework:
-            conditions.append(av.Field("framework").eq(framework.lower()))
-        if error_type:
-            conditions.append(av.Field("error_type").eq(error_type))
-        if resolved_only:
-            conditions.append(av.Field("resolved").eq(True))
+        source: str | None = None,
+        tags_any_of: list[str] | None = None,
+    ) -> SearchFilter | None:
+        sf = SearchFilter(
+            language=language,
+            framework=framework,
+            error_type=error_type,
+            source=source,
+            resolved_only=resolved_only,
+            tags_any_of=tags_any_of or [],
+        )
+        return None if sf.is_empty() else sf
 
-        if not conditions:
-            return None
 
-        builder = av.FilterBuilder()
-        for condition in conditions:
-            builder = builder.must(condition)
-        return builder.build()
+def _record_from_payload(record_id: str, payload: dict) -> ResolutionRecord:
+    """Kept for callers that still need it (currently none)."""
+    return ResolutionRecord.from_payload(record_id, payload)

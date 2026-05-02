@@ -1,4 +1,10 @@
-"""Export and import Context8 knowledge bases."""
+"""Export and import Context8 knowledge bases.
+
+The on-disk format is backend-agnostic JSON — vectors are *not*
+included, so import re-embeds via :class:`IngestPipeline`. That lets
+you migrate between backends (e.g. Actian → SQLite) without worrying
+about embedding-model parity.
+"""
 
 from __future__ import annotations
 
@@ -15,30 +21,18 @@ logger = logging.getLogger("context8.export")
 
 
 def export_json(storage: StorageService, output: Path) -> int:
-    """Export all records to a JSON file.
-
-    Returns the number of records exported.
-    """
-    from .config import COLLECTION_NAME
-
+    """Export all records to a JSON file. Returns the number written."""
     records: list[dict] = []
-    offset = None
+    offset: str | None = None
 
     while True:
         try:
-            points, next_offset = storage.client.points.scroll(
-                COLLECTION_NAME,
-                offset=offset,
-                limit=100,
-                with_payload=True,
-                with_vectors=False,
-            )
-        except Exception as e:
-            logger.warning(f"Scroll failed at offset {offset}: {e}")
+            page, next_offset = storage.scroll(filter=None, limit=100, offset=offset)
+        except Exception as exc:
+            logger.warning(f"Scroll failed at offset {offset!r}: {exc}")
             break
 
-        for point in points:
-            record = ResolutionRecord.from_payload(str(point.id), point.payload)
+        for record in page:
             records.append({"id": record.id, **record.to_payload()})
 
         if next_offset is None:
@@ -62,17 +56,14 @@ def import_json(
     embeddings: EmbeddingService,
     input_path: Path,
 ) -> int:
-    """Import records from a JSON export file.
-
-    Returns the number of records imported.
-    """
+    """Import records from a Context8 JSON export file. Returns count imported."""
     text = input_path.read_text(encoding="utf-8")
     data = json.loads(text)
 
     if data.get("format") != "context8-export":
         raise ValueError(f"Unknown export format: {data.get('format')}")
 
-    records = []
+    records: list[ResolutionRecord] = []
     for entry in data.get("records", []):
         record_id = entry.pop("id", None)
         record = ResolutionRecord.from_payload(record_id or "", entry)
