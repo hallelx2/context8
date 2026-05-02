@@ -4,6 +4,28 @@ import os
 import platform
 from pathlib import Path
 
+
+def _env_truthy(name: str, default: str = "") -> bool:
+    return os.environ.get(name, default).lower() in ("1", "true", "yes", "on")
+
+
+# ---------------------------------------------------------------------------
+# Backend selection
+# ---------------------------------------------------------------------------
+# Default is SQLite + sqlite-vec + FTS5 — zero infrastructure, single file
+# at ~/.context8/context8.db. Set CONTEXT8_BACKEND=actian to use the
+# original hackathon-era gRPC stack (requires `pip install context8[actian]`
+# and a running Docker container).
+BACKEND = os.environ.get("CONTEXT8_BACKEND", "sqlite").strip().lower()
+
+
+def _default_db_path() -> Path:
+    return Path.home() / ".context8" / "context8.db"
+
+
+DB_PATH = Path(os.environ.get("CONTEXT8_DB_PATH", str(_default_db_path())))
+
+# Actian endpoint — only meaningful when BACKEND == "actian".
 DB_HOST = os.environ.get("CONTEXT8_DB_HOST", "localhost")
 DB_PORT = int(os.environ.get("CONTEXT8_DB_PORT", "50051"))
 DB_URL = f"{DB_HOST}:{DB_PORT}"
@@ -11,10 +33,12 @@ DB_URL = f"{DB_HOST}:{DB_PORT}"
 COLLECTION_NAME = "context8_store"
 
 TEXT_EMBED_DIM = 384
+USE_CODE_MODEL = _env_truthy("CONTEXT8_USE_CODE_MODEL")
 # CODE_EMBED_DIM matches the ACTIVE code model. Default is MiniLM (384d)
-# since use_code_model=False reuses the text model. Set to 768 only if
-# CONTEXT8_USE_CODE_MODEL=1 and using CodeBERT.
-CODE_EMBED_DIM = int(os.environ.get("CONTEXT8_CODE_EMBED_DIM", "384"))
+# since use_code_model=False reuses the text model. CodeBERT (768d) is
+# opt-in via CONTEXT8_USE_CODE_MODEL=1.
+_CODE_DIM_DEFAULT = "768" if USE_CODE_MODEL else "384"
+CODE_EMBED_DIM = int(os.environ.get("CONTEXT8_CODE_EMBED_DIM", _CODE_DIM_DEFAULT))
 SPARSE_VOCAB_SIZE = 30000
 
 TEXT_MODEL = os.environ.get(

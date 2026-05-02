@@ -1,14 +1,14 @@
 [project]
 name = "context8"
-version = "0.4.0"
-description = "Collective problem-solving memory for coding agents — powered by Actian VectorAI DB"
+version = "0.5.0"
+description = "Collective problem-solving memory for coding agents — local SQLite + sqlite-vec by default"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
     {name = "Context8 Team", email = "hachiagoholdings@gmail.com"},
 ]
-keywords = ["mcp", "vector-database", "coding-agents", "actian", "context8"]
+keywords = ["mcp", "vector-database", "sqlite", "sqlite-vec", "coding-agents", "context8"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Programming Language :: Python :: 3.10",
@@ -20,6 +20,7 @@ classifiers = [
 ]
 dependencies = [
     "sentence-transformers>=2.2.0",
+    "sqlite-vec>=0.1.6",
     "mcp>=1.0.0",
     "click>=8.0.0",
     "rich>=13.0.0",
@@ -30,6 +31,12 @@ dependencies = [
 code = [
     "transformers>=4.30.0",
 ]
+actian = [
+    # The Actian VectorAI DB SDK is a hackathon-era beta wheel hosted on
+    # GitHub (not on PyPI). It's optional — install only if you want to
+    # run with CONTEXT8_BACKEND=actian.
+    "actian-vectorai @ https://github.com/hackmamba-io/actian-vectorAI-db-beta/raw/main/actian_vectorai-0.1.0b2-py3-none-any.whl",
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
@@ -38,10 +45,6 @@ dev = [
 all = [
     "context8[code,dev]",
 ]
-
-# NOTE: actian-vectorai is required at runtime but is not on PyPI.
-# Install it from the official hackathon repo:
-#   pip install "actian-vectorai @ https://github.com/hackmamba-io/actian-vectorAI-db-beta/raw/main/actian_vectorai-0.1.0b2-py3-none-any.whl"
 
 [project.scripts]
 context8 = "context8.cli:main"
@@ -56,6 +59,10 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/context8"]
+
+[tool.hatch.metadata]
+# Allow the actian-vectorai direct URL reference in `[project.optional-dependencies] actian`.
+allow-direct-references = true
 
 # uv resolves actian-vectorai from this URL when installing from source.
 # This does NOT affect PyPI installs (uv.sources is ignored by pip/PyPI).
@@ -77,3 +84,6 @@ select = ["E", "F", "I", "UP"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "actian: marks tests that require the Actian backend (skipped unless CONTEXT8_BACKEND=actian and the SDK + container are reachable)",
+]
